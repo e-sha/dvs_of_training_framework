@@ -1,5 +1,5 @@
 from nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04
-LABEL maintainer="eugene.shalnov@graphics.cs.msu.ru"
+LABEL maintainer="shalnov.eugen@gmail.com"
 
 ENV ROOT /app
 ENV DEBIAN_FRONTEND noninteractive

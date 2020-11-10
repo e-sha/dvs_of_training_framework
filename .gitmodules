@@ -10,3 +10,6 @@
 [submodule "EV_FlowNet"]
 	path = EV_FlowNet
 	url = https://github.com/e-sha/EV_FlowNet
+[submodule "utils/modules_to_build/transformations"]
+	path = utils/modules_to_build/transformations
+	url = https://github.com/e-sha/dvs_transformations
