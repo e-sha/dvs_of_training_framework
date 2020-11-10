@@ -1,0 +1,16 @@
+mvsec:
+  outdoor_day1:
+    start: 222.4
+    stop: 240.4
+  outdoor_day2:
+    start: 45
+    stop:
+  indoor_flying1:
+    start:
+    stop:
+  indoor_flying2:
+    start:
+    stop:
+  indoor_flying3:
+    start:
+    stop:

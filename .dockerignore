@@ -1,0 +1,14 @@
+*
+!requirements.txt
+!*.py
+!build.sh
+!RAdam
+!mish
+!Ranger-Deep-Learning-Optimizer
+!dvs_optical_flow_ev_flownet
+!utils
+!scripts
+!config
+!data
+!recurrent_flownet
+!.git

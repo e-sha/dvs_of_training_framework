@@ -1,0 +1,12 @@
+[submodule "RAdam"]
+	path = RAdam
+	url = https://github.com/e-sha/RAdam
+[submodule "Ranger-Deep-Learning-Optimizer"]
+	path = Ranger-Deep-Learning-Optimizer
+	url = https://github.com/e-sha/Ranger-Deep-Learning-Optimizer
+[submodule "mish"]
+	path = mish
+	url = https://github.com/e-sha/mish
+[submodule "EV_FlowNet"]
+	path = EV_FlowNet
+	url = https://github.com/e-sha/EV_FlowNet
