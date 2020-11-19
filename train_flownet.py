@@ -35,9 +35,9 @@ def get_commithash():
     return subprocess.check_output('git rev-parse --verify HEAD', shell=True).decode().strip()
 
 def write_params(out_dir, args):
-    data2write = '\n'.join(' '.join(sys.argv),
-                           f'commit_hash: {get_commithash()}',
-                           yaml.dump(vars(args)))
+    data2write = '\n'.join([' '.join(sys.argv),
+                            f'commit_hash: {get_commithash()}',
+                            yaml.dump(vars(args))])
     (out_dir/'parameters').write_text(data2write)
 
 def is_inside_docker():
@@ -45,7 +45,7 @@ def is_inside_docker():
 
 def choose_data_path(args):
     args.model.mkdir(exist_ok=True, parents=True)
-    if is_inside_docker()
+    if is_inside_docker():
         data_path = Path('/data/training/mvsec')
     else:
         base_dir = (script_dir/'..').resolve()
@@ -78,6 +78,7 @@ def get_trainset_params(args):
     params.path = args.data_path/'output_day2'
     params.augmentation = True
     params.collapse_length = args.cl
+    params.shuffle = True
     return params
 
 def get_valset_params(args):
@@ -85,6 +86,7 @@ def get_valset_params(args):
     params.path = args.data_path/'output_day1'
     params.augmentation = False
     params.collapse_length = 1
+    params.shuffle = False
     return params
 
 def get_dataloader(params):
@@ -94,7 +96,7 @@ def get_dataloader(params):
                       collapse_length=params.augmentation,
                       is_raw=params.is_raw)
     return torch.utils.data.DataLoader(dataset,
-                                       collate_fn=collate_fn,
+                                       collate_fn=params.collate_fn,
                                        batch_size=params.batch_size,
                                        shuffle=params.shuffle,
                                        num_workers=params.num_workers,
@@ -102,7 +104,12 @@ def get_dataloader(params):
 
 
 def init_model(args, device):
-    model_kwargs = options2model_kwargs(args)
+    if args.ev_flownet:
+        from EV_FlowNet.net import Model
+        model_kwargs = {}
+    else:
+        assert False, 'Not implemented'
+        model_kwargs = options2model_kwargs(args)
     model = Model(device, **model_kwargs)
     if not args.sp is None:
         model.load_state_dict(torch.load(args.sp, map_location=device))
@@ -151,11 +158,6 @@ def main():
     #torch.autograd.set_detect_anomaly(True)
 
     args = parse_args()
-
-    if args.ev_flownet:
-        from EV_FlowNet.net import Model
-    else:
-        assert False, 'Not implemented'
 
     device = torch.device(args.device)
     torch.cuda.set_device(device)

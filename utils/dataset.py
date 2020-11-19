@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from dvs_optical_flow_ev_flownet.net import compute_event_image
+from EV_FlowNet.net import compute_event_image
 from .data import central_shift, EventCrop, ImageCrop, ImageRandomCrop, RandomRotation, ImageCentralCrop
 
 def read_info(filename):
