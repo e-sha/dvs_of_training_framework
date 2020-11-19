@@ -25,6 +25,7 @@ class Dataset:
             ):
         self.path = Path(path)
         self.files = sorted(list(self.path.glob('*.hdf5')), key=lambda x: int(x.stem))
+        assert len(self.files) > 0, f"No hdf5 files found in {self.path}"
         self.augmentation = augmentation
         self.shape = shape
         self.collapse_length = collapse_length

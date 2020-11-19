@@ -28,7 +28,9 @@ from utils.training import train, validate
 from utils.loss import Losses
 
 def init_losses(shape, batch_size, model, device):
-    out_shapes = model.get_output_sizes(shape)
+    events = torch.zeros((1, 5), dtype=torch.float32).numpy()
+    out = model(events, torch.tensor([0]).numpy(), torch.tensor([0.4]).numpy(), shape, raw=True)
+    out_shapes = tuple(tuple(flow.shape[2:]) for flow in out)
     return Losses(out_shapes, batch_size, device)
 
 def get_commithash():
@@ -58,13 +60,14 @@ def parse_args():
     args = train_parser().parse_args()
     args = choose_data_path(args)
     write_params(args.model, args)
+    args.is_raw = not args.ev_images
     return args
 
 def get_resolution(args):
     return args.height, args.width
 
 def get_common_dataset_params(args):
-    is_raw = not args.ev_images
+    is_raw = args.is_raw
     collate_fn = collate_wrapper if is_raw else None
     return SimpleNamespace(is_raw=is_raw,
                            collate_fn=collate_fn,
@@ -75,7 +78,7 @@ def get_common_dataset_params(args):
 
 def get_trainset_params(args):
     params = get_common_dataset_params(args)
-    params.path = args.data_path/'output_day2'
+    params.path = args.data_path/'outdoor_day2'
     params.augmentation = True
     params.collapse_length = args.cl
     params.shuffle = True
@@ -83,7 +86,7 @@ def get_trainset_params(args):
 
 def get_valset_params(args):
     params = get_common_dataset_params(args)
-    params.path = args.data_path/'output_day1'
+    params.path = args.data_path/'outdoor_day1'
     params.augmentation = False
     params.collapse_length = 1
     params.shuffle = False
@@ -148,7 +151,7 @@ def construct_optimizer_and_scheduler(args, model):
     predictor_scheduler = lambda step: args.lr_gamma ** (step // args.step)
     representation_scheduler = lambda step: predictor_scheduler(step) if epoch > args.rs else 0
 
-    optimizer = construct_optimzier(args, representation_params + predictor_params)
+    optimizer = construct_optimizer(args, representation_params + predictor_params)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer,
                                             lr_lambda=[representation_scheduler] * len(representation_params) + \
                                                       [predictor_scheduler] * len(predictor_params))
@@ -174,19 +177,19 @@ def main():
     logger = SummaryWriter(str(args.log_path))
 
     validate(model, device, val_loader, 0, logger, losses,
-             weights=args.loss_weights, is_raw=is_raw)
+             weights=args.loss_weights, is_raw=args.is_raw)
     for epoch in range(args.epochs):
         torch.save(model.state_dict(), args.model/f'{epoch}.pth')
         train(model, device, train_loader, optimizer, epoch,
               evaluator=losses,
               logger=logger,
-              weights=args.loss_weights, is_raw=is_raw,
+              weights=args.loss_weights, is_raw=args.is_raw,
               accumulation_step=args.accum_step)
         if (epoch+1) % args.vp == 0:
             validate(model, device, val_loader,
                 (epoch + 1) * len(train_loader), logger,
                 losses,
-                weights=args.loss_weights, is_raw=is_raw)
+                weights=args.loss_weights, is_raw=args.is_raw)
         scheduler.step()
     torch.save(model.state_dict(), args.model/f'{args.epochs}.pth')
 
