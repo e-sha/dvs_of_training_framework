@@ -50,7 +50,7 @@ def train(model, device, train_loader, optimizer, epoch,
         global_step += 1
         data, start, stop, image1, image2 = map(lambda x: x.to(device), (data, start, stop, image1, image2))
         shape = image1.size()[-2:]
-        prediction, features = model(data, start, stop, shape, raw=is_raw)
+        prediction, features = model(data, start, stop, shape, raw=is_raw, intermediate=True)
         loss, terms = combined_loss(evaluator, prediction, image1, image2, features, weights=weights)
         smoothness, photometric, out_reg = terms
         normalized_loss = loss / accumulation_step
@@ -84,7 +84,7 @@ def validate(model, device, loader, global_step,
     for data, start, stop, image1, image2 in loader:
         data, start, stop, image1, image2 = map(lambda x: x.to(device), (data, start, stop, image1, image2))
         shape = image1.size()[-2:]
-        prediction, features = model(data, start, stop, shape, raw=is_raw)
+        prediction, features = model(data, start, stop, shape, raw=is_raw, intermediate=True)
         loss, terms = combined_loss(evaluator, prediction, image1, image2, features, weights=weights)
         smoothness, photometric, out_reg = terms
         photo_sum = add_loss(photo_sum, photometric)
