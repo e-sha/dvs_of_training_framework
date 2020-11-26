@@ -26,6 +26,7 @@ from utils.dataset import read_info, Dataset, collate_wrapper
 from utils.options import train_parser, options2model_kwargs
 from utils.training import train, validate
 from utils.loss import Losses
+from utils.timer import SynchronizedWallClockTimer
 
 def init_losses(shape, batch_size, model, device):
     events = torch.zeros((1, 5), dtype=torch.float32).numpy()
@@ -164,6 +165,7 @@ def main():
 
     device = torch.device(args.device)
     torch.cuda.set_device(device)
+    timers = SynchronizedWallClockTimer()
 
     model = init_model(args, device)
 
@@ -184,7 +186,7 @@ def main():
               evaluator=losses,
               logger=logger,
               weights=args.loss_weights, is_raw=args.is_raw,
-              accumulation_step=args.accum_step)
+              accumulation_step=args.accum_step, timers=timers)
         if (epoch+1) % args.vp == 0:
             validate(model, device, val_loader,
                 (epoch + 1) * len(train_loader), logger,

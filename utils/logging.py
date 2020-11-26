@@ -1,15 +1,37 @@
-class FakeLogger:
-  def close(self):
-    pass
+import logging
+import sys
 
-  def add_scalar(self, tag, value, global_step):
-    pass
+import torch.distributed as dist
 
-  def add_histogram(self, tag, values, global_step, bins):
-    pass
 
-  def add_image(self, tag, img, global_step):
-    pass
+class LoggerFactory:
+    @staticmethod
+    def create_logger(name=None, level=logging.INFO):
+        """create a logger
 
-  def add_plot(self, tag, figure, global_step):
-    pass
+        Args:
+            name (str): name of the logger
+            level: level of logger
+
+        Raises:
+            ValueError is name is None
+        """
+
+        if name is None:
+            raise ValueError("name for logger cannot be None")
+
+        formatter = logging.Formatter(
+            "[%(asctime)s] [%(levelname)s] "
+            "[%(filename)s:%(lineno)d:%(funcName)s] %(message)s")
+
+        logger_ = logging.getLogger(name)
+        logger_.setLevel(level)
+        logger_.propagate = False
+        ch = logging.StreamHandler(stream=sys.stdout)
+        ch.setLevel(level)
+        ch.setFormatter(formatter)
+        logger_.addHandler(ch)
+        return logger_
+
+
+logger = LoggerFactory.create_logger(name="DVS_OF", level=logging.INFO)

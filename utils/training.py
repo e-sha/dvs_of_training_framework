@@ -1,6 +1,7 @@
 from functools import partial
 
 from .loss import photometric_loss, smoothness_loss
+from .timer import SynchronizedWallClockTimer
 
 import torch.nn.functional as F
 
@@ -22,7 +23,7 @@ def combined_loss(evaluator, flows, image1, image2, features, weights=[0.5, 1, 1
 
 def train(model, device, train_loader, optimizer, epoch,
         logger, evaluator, weights=[0.5, 1, 1], is_raw=True,
-        accumulation_step=1):
+        accumulation_step=1, timers=SynchronizedWallClockTimer()):
     ''' Performs one epoch of training
 
     Args:
@@ -46,19 +47,35 @@ def train(model, device, train_loader, optimizer, epoch,
     loss_sum = 0
     optimizer.zero_grad()
     global_step = epoch * n
+    timers('batch_construction').start()
     for data, start, stop, image1, image2 in train_loader:
+        timers('batch_construction').stop()
         global_step += 1
+        timers('batch2gpu').start()
         data, start, stop, image1, image2 = map(lambda x: x.to(device), (data, start, stop, image1, image2))
+        timers('batch2gpu').stop()
         shape = image1.size()[-2:]
+        timers('forward').start()
         prediction, features = model(data, start, stop, shape, raw=is_raw, intermediate=True)
+        timers('forward').stop()
+        timers('loss').start()
         loss, terms = combined_loss(evaluator, prediction, image1, image2, features, weights=weights)
         smoothness, photometric, out_reg = terms
         normalized_loss = loss / accumulation_step
+        timers('loss').stop()
+        timers('backprop').start()
         normalized_loss.backward()
+        timers('backprop').stop()
         if global_step % accumulation_step == 0:
+            timers('optimizer_step').start()
             optimizer.step()
             optimizer.zero_grad()
+            timers('optimizer_step').stop()
+        else:
+            timers('optimizer_step').start()
+            timers('optimizer_step').stop()
 
+        timers('logging').start()
         for i, (s, p, o) in enumerate(zip(smoothness, photometric, out_reg)):
             logger.add_scalar(f'Train/photometric loss/{i}', p.item(), global_step)
             logger.add_scalar(f'Train/smoothness loss/{i}', s.item(), global_step)
@@ -66,6 +83,16 @@ def train(model, device, train_loader, optimizer, epoch,
         logger.add_scalar(f'Train/loss', loss.item(), global_step)
         for i, lr in enumerate([p['lr'] for p in optimizer.param_groups]):
             logger.add_scalar(f'learning rate/{i}', lr, global_step)
+        timers('logging').stop()
+        timers.log(names=['batch_construction',
+                          'batch2gpu',
+                          'forward',
+                          'loss',
+                          'backprop',
+                          'optimizer_step',
+                          'logging'])
+        timers('batch_construction').start()
+    timers('batch_construction').stop()
 
 def add_loss(loss_sum, loss_values):
     if len(loss_sum) == 0:
