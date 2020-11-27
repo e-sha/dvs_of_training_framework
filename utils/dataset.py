@@ -129,7 +129,12 @@ class Dataset:
             samples = events
         else:
             events = add_sample_index(events, 0)
-            samples = compute_event_image(events, np.array(start), np.array(stop), self.shape)[0]
+            samples = compute_event_image(events,
+                                          np.array(start),
+                                          np.array(stop),
+                                          self.shape,
+                                          device='cpu',
+                                          dtype=torch.float32)[0]
 
         if self.return_aug:
             box = np.array(box, dtype=int)

@@ -29,8 +29,11 @@ from utils.loss import Losses
 from utils.timer import SynchronizedWallClockTimer
 
 def init_losses(shape, batch_size, model, device):
-    events = torch.zeros((1, 5), dtype=torch.float32).numpy()
-    out = model(events, torch.tensor([0]).numpy(), torch.tensor([0.4]).numpy(), shape, raw=True)
+    events = torch.zeros((0, 5), dtype=torch.float32, device=device)
+    out = model(events,
+                torch.tensor([0], dtype=torch.float32, device=device),
+                torch.tensor([0.4], dtype=torch.float32, device=device),
+                shape, raw=True)
     out_shapes = tuple(tuple(flow.shape[2:]) for flow in out)
     return Losses(out_shapes, batch_size, device)
 
