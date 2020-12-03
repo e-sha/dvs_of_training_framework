@@ -6,6 +6,8 @@ import os
 import yaml
 import subprocess
 from types import SimpleNamespace
+import inspect
+import importlib.util
 
 script_dir = Path(__file__).resolve().parent
 ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
@@ -110,14 +112,29 @@ def get_dataloader(params):
                                        pin_memory=params.pin_memory)
 
 
+def import_module(module_name, module_path):
+    module_spec = importlib.util.find_spec(module_name, module_path)
+    assert module_spec is not None, f'Module: {module_name} at {Path(module_path).resolve()} not found'
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
+
+def filter_kwargs(func, kwargs):
+    signature = inspect.signature(func)
+    keys2use = []
+    for key in signature.parameters:
+        if signature.parameters[key].kind == inspect.Parameter.VAR_KEYWORD:
+            return kwargs
+        if key in kwargs:
+            keys2use.append(key)
+    return {key: kwargs[key] for key in keys2use}
+
+
 def init_model(args, device):
-    if args.ev_flownet:
-        from EV_FlowNet.net import Model
-        model_kwargs = {}
-    else:
-        assert False, 'Not implemented'
-        model_kwargs = options2model_kwargs(args)
-    model = Model(device, **model_kwargs)
+    module = import_module(f'{args.flownet_path.name}.net', args.flownet_path/'net.py')
+    model_kwargs = options2model_kwargs(args)
+    model_kwargs = filter_kwargs(module.Model, model_kwargs)
+    model = module.Model(device, **model_kwargs)
     if not args.sp is None:
         model.load_state_dict(torch.load(args.sp, map_location=device))
     model.to(device)

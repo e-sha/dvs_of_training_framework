@@ -34,8 +34,8 @@ def train_parser():
             dest='width', default=256, type=int, required=False)
     parser.add_argument('-vp', '--validation_period', help='validation period',
             dest='vp', default=5, type=int, required=False)
-    parser.add_argument('--ev_flownet', help='to train ev_flownet',
-            action='store_true')
+    parser.add_argument('--flownet_path', help='relative path to a model to train',
+            default=Path('EV_FlowNet'), type=Path, required=False)
     parser.add_argument('--optimizer', help='Optimizer to use',
             default='RANGER', choices=['ADAM', 'RADAM', 'RANGER'])
     parser.add_argument('--loss_weights', help='weights of the term in the loss function',
