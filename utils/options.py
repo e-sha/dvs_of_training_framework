@@ -48,6 +48,12 @@ def train_parser():
             action='store_true')
     parser.add_argument('--accum_step', help='Number of batches to process before to accumulate gradients',
             dest='accum_step', default=1, type=int)
+    parser.add_argument('--num_checkpoints', help='Number of last checkpoints to store',
+            dest='num_checkpoints', default=2, type=int)
+    parser.add_argument('--permanent_interval', help='Periodicity of making checkpoints that will not be removed',
+            dest='permanent_interval', default=10, type=int)
+    parser.add_argument('--checkpointing_interval', help='Periodicity of making checkpoints',
+            dest='checkpointing_interval', default=10, type=int)
 
     return parser
 

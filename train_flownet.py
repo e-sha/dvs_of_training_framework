@@ -29,6 +29,7 @@ from utils.options import train_parser, options2model_kwargs
 from utils.training import train, validate
 from utils.loss import Losses
 from utils.timer import SynchronizedWallClockTimer
+from utils.serializer import Serializer
 
 def init_losses(shape, batch_size, model, device):
     events = torch.zeros((0, 5), dtype=torch.float32, device=device)
@@ -170,7 +171,7 @@ def construct_optimizer_and_scheduler(args, model):
         predictor_params = [{'params': model.parameters(), 'weight_decay': args.wdw}]
 
     predictor_scheduler = lambda step: args.lr_gamma ** (step // args.step)
-    representation_scheduler = lambda step: predictor_scheduler(step) if epoch > args.rs else 0
+    representation_scheduler = lambda step: predictor_scheduler(step) if step > args.rs else 0
 
     optimizer = construct_optimizer(args, representation_params + predictor_params)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer,
@@ -188,6 +189,9 @@ def main():
     timers = SynchronizedWallClockTimer()
 
     model = init_model(args, device)
+    serializer = Serializer(args.model,
+                            args.num_checkpoints,
+                            args.permanent_interval)
 
     train_loader = get_dataloader(get_trainset_params(args))
     val_loader = get_dataloader(get_valset_params(args))
@@ -201,7 +205,8 @@ def main():
     validate(model, device, val_loader, 0, logger, losses,
              weights=args.loss_weights, is_raw=args.is_raw)
     for epoch in range(args.epochs):
-        torch.save(model.state_dict(), args.model/f'{epoch}.pth')
+        if epoch % args.checkpointing_interval == 0:
+            serializer.checkpoint_model(model, optimizer, epoch)
         train(model, device, train_loader, optimizer, epoch,
               evaluator=losses,
               logger=logger,
@@ -213,7 +218,7 @@ def main():
                 losses,
                 weights=args.loss_weights, is_raw=args.is_raw)
         scheduler.step()
-    torch.save(model.state_dict(), args.model/f'{args.epochs}.pth')
+    serializer.checkpoint_model(model, optimizer, epoch)
 
 if __name__=='__main__':
     main()
