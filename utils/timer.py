@@ -13,6 +13,37 @@ def print_rank_0(message):
     if get_rank() == 0:
         print(message)
 
+class FakeTimer:
+    class Timer:
+        def __init__(self, name):
+            pass
+        
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def reset(self):
+            pass
+
+        def elapsed(self, reset=True):
+            return 0
+
+    def __init__(self):
+        self.timers = {}
+
+    def __call__(self, name):
+        if name not in self.timers:
+            self.timers[name] = self.Timer(name)
+        return self.timers[name]
+
+    @staticmethod
+    def memory_usage():
+        return ''
+
+    def log(self, names, normalizer=1.0, reset=True, memory_breakdown=False):
+        pass
 
 class SynchronizedWallClockTimer:
     """Group of timers. Borrowed from Nvidia Megatron code"""

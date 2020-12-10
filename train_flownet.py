@@ -28,7 +28,7 @@ from utils.dataset import read_info, Dataset, collate_wrapper
 from utils.options import train_parser, options2model_kwargs
 from utils.training import train, validate
 from utils.loss import Losses
-from utils.timer import SynchronizedWallClockTimer
+from utils.timer import SynchronizedWallClockTimer, FakeTimer
 from utils.serializer import Serializer
 
 def init_losses(shape, batch_size, model, device):
@@ -186,7 +186,10 @@ def main():
 
     device = torch.device(args.device)
     torch.cuda.set_device(device)
-    timers = SynchronizedWallClockTimer()
+    if args.timers:
+        timers = SynchronizedWallClockTimer()
+    else:
+        timers = FakeTimer()
 
     model = init_model(args, device)
     serializer = Serializer(args.model,

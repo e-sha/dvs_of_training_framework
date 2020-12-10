@@ -54,6 +54,8 @@ def train_parser():
             dest='permanent_interval', default=10, type=int)
     parser.add_argument('--checkpointing_interval', help='Periodicity of making checkpoints',
             dest='checkpointing_interval', default=10, type=int)
+    parser.add_argument('--timers', help='Print information from timers',
+            dest='timers', action='store_true')
 
     return parser
 
