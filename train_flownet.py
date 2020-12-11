@@ -8,6 +8,7 @@ import subprocess
 from types import SimpleNamespace
 import inspect
 import importlib.util
+from functools import partial
 
 script_dir = Path(__file__).resolve().parent
 ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
@@ -24,19 +25,20 @@ from ranger import Ranger
 from RAdam.radam import RAdam
 
 from utils.testing import evaluate
-from utils.dataset import read_info, Dataset, collate_wrapper
-from utils.options import train_parser, options2model_kwargs
-from utils.training import train, validate
+from utils.dataset import read_info, Dataset, IterableDataset, collate_wrapper
+from utils.options import train_parser, validate_args, options2model_kwargs
+from utils.training import train, validate, make_hook_periodic
 from utils.loss import Losses
 from utils.timer import SynchronizedWallClockTimer, FakeTimer
 from utils.serializer import Serializer
 
 def init_losses(shape, batch_size, model, device):
     events = torch.zeros((0, 5), dtype=torch.float32, device=device)
-    out = model(events,
-                torch.tensor([0], dtype=torch.float32, device=device),
-                torch.tensor([0.4], dtype=torch.float32, device=device),
-                shape, raw=True)
+    with torch.no_grad():
+        out = model(events,
+                    torch.tensor([0], dtype=torch.float32, device=device),
+                    torch.tensor([0.04], dtype=torch.float32, device=device),
+                    shape, raw=True)
     out_shapes = tuple(tuple(flow.shape[2:]) for flow in out)
     return Losses(out_shapes, batch_size, device)
 
@@ -65,6 +67,7 @@ def choose_data_path(args):
 
 def parse_args():
     args = train_parser().parse_args()
+    args = validate_args(args)
     args = choose_data_path(args)
     write_params(args.model, args)
     args.is_raw = not args.ev_images
@@ -79,9 +82,9 @@ def get_common_dataset_params(args):
     return SimpleNamespace(is_raw=is_raw,
                            collate_fn=collate_fn,
                            shape=get_resolution(args),
-                           batch_size=args.bs,
+                           batch_size=args.mbs,
                            pin_memory=True,
-                           num_workers=args.bs)
+                           num_workers=args.mbs)
 
 def get_trainset_params(args):
     params = get_common_dataset_params(args)
@@ -89,6 +92,7 @@ def get_trainset_params(args):
     params.augmentation = True
     params.collapse_length = args.cl
     params.shuffle = True
+    params.infinite = True
     return params
 
 def get_valset_params(args):
@@ -97,20 +101,27 @@ def get_valset_params(args):
     params.augmentation = False
     params.collapse_length = 1
     params.shuffle = False
+    params.infinite = False
     return params
 
 def get_dataloader(params):
-    dataset = Dataset(path=params.path,
-                      shape=params.shape,
-                      augmentation=params.augmentation,
-                      collapse_length=params.augmentation,
-                      is_raw=params.is_raw)
+    kwargs = {'path': params.path,
+              'shape': params.shape,
+              'augmentation': params.augmentation,
+              'collapse_length': params.augmentation,
+              'is_raw': params.is_raw}
+    loader_kwargs = {}
+    if params.infinite:
+        dataset = IterableDataset(shuffle = params.shuffle, **kwargs)
+    else:
+        dataset = Dataset(**kwargs)
+        loader_kwargs['shuffle'] = params.shuffle
     return torch.utils.data.DataLoader(dataset,
                                        collate_fn=params.collate_fn,
                                        batch_size=params.batch_size,
-                                       shuffle=params.shuffle,
                                        num_workers=params.num_workers,
-                                       pin_memory=params.pin_memory)
+                                       pin_memory=params.pin_memory,
+                                       **loader_kwargs)
 
 
 def import_module(module_name, module_path):
@@ -163,6 +174,7 @@ def construct_optimizer(args, params):
 
 def construct_optimizer_and_scheduler(args, model):
     is_splitted = hasattr(model, 'quantization_layer')
+    representation_start = args.training_steps * args.rs
     if is_splitted:
         representation_params = [{'params': model.quantization_layer.parameters(), 'weight_decay': args.wdw}]
         predictor_params = [{'params': model.predictor.parameters()}]
@@ -170,14 +182,36 @@ def construct_optimizer_and_scheduler(args, model):
         representation_params = []
         predictor_params = [{'params': model.parameters(), 'weight_decay': args.wdw}]
 
-    predictor_scheduler = lambda step: args.lr_gamma ** (step // args.step)
-    representation_scheduler = lambda step: predictor_scheduler(step) if step > args.rs else 0
+    predictor_scheduler = lambda step: 2 ** (-step / args.half_life)
+    representation_scheduler = lambda step: predictor_scheduler(step) if step > representation_start else 0
 
     optimizer = construct_optimizer(args, representation_params + predictor_params)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer,
                                             lr_lambda=[representation_scheduler] * len(representation_params) + \
                                                       [predictor_scheduler] * len(predictor_params))
     return optimizer, scheduler
+
+def create_hooks(args, model, optimizer, losses, logger):
+    device = torch.device(args.device)
+    loader = get_dataloader(get_valset_params(args))
+    serializer = Serializer(args.model,
+                            args.num_checkpoints,
+                            args.permanent_interval)
+    hooks = {'serialization': lambda steps, samples: serializer.checkpoint_model(model,
+                                                                                 optimizer,
+                                                                                 global_step=steps),
+             'validation': lambda step, samples: validate(model,
+                                                          device,
+                                                          loader,
+                                                          samples,
+                                                          logger,
+                                                          losses,
+                                                          weights=args.loss_weights,
+                                                          is_raw=args.is_raw)}
+    periods = {'serialization': args.checkpointing_interval,
+               'validation': args.vp}
+    periodic_hooks = {k: make_hook_periodic(hooks[k], periods[k]) for k in periods}
+    return periodic_hooks, hooks
 
 def main():
     #torch.autograd.set_detect_anomaly(True)
@@ -192,12 +226,8 @@ def main():
         timers = FakeTimer()
 
     model = init_model(args, device)
-    serializer = Serializer(args.model,
-                            args.num_checkpoints,
-                            args.permanent_interval)
 
-    train_loader = get_dataloader(get_trainset_params(args))
-    val_loader = get_dataloader(get_valset_params(args))
+    loader = get_dataloader(get_trainset_params(args))
 
     optimizer, scheduler = construct_optimizer_and_scheduler(args, model)
 
@@ -205,23 +235,28 @@ def main():
 
     logger = SummaryWriter(str(args.log_path))
 
-    validate(model, device, val_loader, 0, logger, losses,
-             weights=args.loss_weights, is_raw=args.is_raw)
-    for epoch in range(args.epochs):
-        if epoch % args.checkpointing_interval == 0:
-            serializer.checkpoint_model(model, optimizer, epoch)
-        train(model, device, train_loader, optimizer, epoch,
-              evaluator=losses,
-              logger=logger,
-              weights=args.loss_weights, is_raw=args.is_raw,
-              accumulation_step=args.accum_step, timers=timers)
-        if (epoch+1) % args.vp == 0:
-            validate(model, device, val_loader,
-                (epoch + 1) * len(train_loader), logger,
-                losses,
-                weights=args.loss_weights, is_raw=args.is_raw)
-        scheduler.step()
-    serializer.checkpoint_model(model, optimizer, epoch)
+    periodic_hooks, hooks = create_hooks(args, model, optimizer, losses, logger)
+
+    hooks['serialization'](0, 0)
+    hooks['validation'](0, 0)
+
+    train(model,
+          device,
+          loader,
+          optimizer,
+          args.training_steps,
+          scheduler=scheduler,
+          evaluator=losses,
+          logger=logger,
+          weights=args.loss_weights,
+          is_raw=args.is_raw,
+          accumulation_steps=args.accum_step,
+          timers=timers,
+          hooks=periodic_hooks)
+
+    samples = args.training_steps * args.accum_step * args.bs
+    hooks['serialization'](args.training_steps, samples)
+    hooks['validation'](args.training_steps, samples)
 
 if __name__=='__main__':
     main()

@@ -1,7 +1,9 @@
 import h5py
 from pathlib import Path
 import numpy as np
+import random
 import torch
+import torch.utils.data
 
 from EV_FlowNet.net import compute_event_image
 from .data import central_shift, EventCrop, ImageCrop, ImageRandomCrop, RandomRotation, ImageCentralCrop
@@ -12,7 +14,55 @@ def read_info(filename):
         start_times = list(f['start_time'])
     return dict(zip(sets, start_times))
 
-class Dataset:
+class IterableDataset(torch.utils.data.IterableDataset):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self._shuffle = kwargs.pop('shuffle', False)
+        self._dataset = DatasetImpl(**kwargs)
+
+    def __iter__(self):
+        def iterate(dataset, start, end, shuffle, **kwargs):
+            shuffle_fun = random.shuffle if shuffle else lambda x: None
+            order = list(range(start, end))
+            shuffle_fun(order)
+            i = 0
+            while True:
+                yield dataset[order[i]]
+                i += 1
+                if i == len(order):
+                    i = 0
+                    shuffle_fun(order)
+
+        iter_start = 0
+        iter_end = len(self._dataset)
+        #worker_info = torch.utils.data.get_worker_info()
+        if False: #if worker_info is not None:
+            # split workload
+            num_elems = iter_end - iter_start
+            per_worker = num_elems // worker_info.num_workers
+            residual = num_elems % worker_info.num_workers
+            worker_id = worker_info.id
+            iter_start = (per_worker + 1) * min(worker_id, residual) + \
+                         per_worker * max(worker_id - residual, 0)
+            iter_end = iter_start + per_worker + (1 if worker_id >= residual else 0)
+            assert iter_start < len(self._dataset)
+            assert iter_end <= len(self._dataset)
+        return iterate(self._dataset, iter_start, iter_end, self._shuffle)
+
+
+class Dataset(torch.utils.data.Dataset):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self._dataset = DatasetImpl(**kwargs)
+
+    def __len__(self):
+        return len(self._dataset)
+
+    def __getitem__(self, idx):
+        return self._dataset[idx]
+
+
+class DatasetImpl:
     def __init__(self,
             path, # path to the dataset
             shape, # shape of the images to load
@@ -129,12 +179,13 @@ class Dataset:
             samples = events
         else:
             events = add_sample_index(events, 0)
-            samples = compute_event_image(events,
-                                          np.array(start),
-                                          np.array(stop),
-                                          self.shape,
-                                          device='cpu',
-                                          dtype=torch.float32)[0]
+            with torch.no_grad():
+                samples = compute_event_image(events,
+                                              np.array(start),
+                                              np.array(stop),
+                                              self.shape,
+                                              device='cpu',
+                                              dtype=torch.float32)[0]
 
         if self.return_aug:
             box = np.array(box, dtype=int)

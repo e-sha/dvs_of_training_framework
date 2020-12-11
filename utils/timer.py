@@ -17,7 +17,7 @@ class FakeTimer:
     class Timer:
         def __init__(self, name):
             pass
-        
+
         def start(self):
             pass
 
