@@ -83,10 +83,10 @@ def train(model,
         timers('loss').start()
         loss, terms = combined_loss(evaluator, prediction, image1, image2, features, weights=weights)
         smoothness, photometric, out_reg = terms
-        normalized_loss = loss / accumulation_steps
+        loss /= accumulation_steps
         timers('loss').stop()
         timers('backprop').start()
-        normalized_loss.backward()
+        loss.backward()
         timers('backprop').stop()
 
         is_step_boundary = (global_step + 1) % accumulation_steps == 0
@@ -142,9 +142,6 @@ def train(model,
 
         # remove the graph
         timers('free').start()
-        loss = loss.item()
-        smoothness, photometric, out_reg = map(lambda x: (el.item() for el in x),
-                                               [smoothness, photometric, out_reg])
         del prediction
         del features
         timers('free').stop()
