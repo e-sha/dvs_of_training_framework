@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 from functools import partial
 
+from .timer import FakeTimer
+
 torch_version = tuple(map(int, torch.__version__.split('.')[:2]))
 if torch_version[0] > 1 or torch_version[0] == 1 and torch_version[1] > 2:
     grid_sample = partial(F.grid_sample, align_corners=True)
@@ -11,13 +13,17 @@ else:
 def interpolate(img, shape):
     return F.interpolate(img, size=shape, mode='bilinear', align_corners=True)
 
-def charbonier_loss(delta, alpha: float=0.45, epsilon: float=1e-3):
+def charbonier_loss(delta, alpha: float=0.45, epsilon: float=1e-3, denominator: torch.Tensor=None):
     if delta.numel() == 0:
         return 0
-    return (delta.pow(2) + epsilon*epsilon).pow(alpha).mean()
+    delta = (delta.pow(2) + epsilon*epsilon).pow(alpha)
+    if denominator is None:
+        return delta.mean()
+    assert denominator.numel() == delta.numel()
+    return (delta / denominator).sum()
 
 class Loss:
-    def __init__(self, pred_shape, batch_size, device):
+    def __init__(self, pred_shape, batch_size, device, timers=FakeTimer()):
         self.N = batch_size
         self.H, self.W = pred_shape
 
@@ -29,6 +35,7 @@ class Loss:
         self.grid = grid.unsqueeze(0).expand(self.N, -1, -1, -1)
         # used to store (self.grid + flow)
         self.grid_holder = torch.empty_like(self.grid)
+        self.timers = timers
 
     def warp_images_with_flow(self, images, warp_grid):
         N, C, H, W = images.size()
@@ -61,15 +68,24 @@ class Loss:
         return ((warp_grid < -1) | (warp_grid > 1)).sum(1) > 0
 
     def outborder_regularization_loss(self, flow_arth, warp_grid):
-        mask = self.outborder_mask(warp_grid).unsqueeze_(1).expand(-1, 2, -1, -1)
-        N = mask.size()[0]
-        losses = []
-        for i in range(N):
-            values = flow_arth[i][mask[i]]
-            if values.numel() == 0:
-                losses.append(0)
-            losses.append(charbonier_loss(values))
-        return sum(losses) / N
+        N = warp_grid.size()[0]
+        with torch.no_grad():
+            mask = self.outborder_mask(warp_grid)
+            # number of bad values in each sample [N_1, N_2, ..., N_N]
+            denominators = mask.view(N, -1).sum(dim=1) * 2
+            mask = mask.unsqueeze_(1).expand(-1, 2, -1, -1)
+
+            # at which positions values of ith sample ends from
+            stop = torch.cumsum(denominators, dim=0)
+            # number of bad values in a whole batch
+            num_points = denominators.sum().item()
+            # indices of samples in a batch
+            idx = torch.searchsorted(stop, torch.arange(num_points, device=flow_arth.device), right=True)
+            denominators = denominators[idx] * N
+
+        values = flow_arth[mask]
+        loss = charbonier_loss(values, denominator=denominators)
+        return loss
 
     def __call__(self, prev_images, next_images, flow, flow_arth):
         N, C, H, W = prev_images.size()
@@ -95,6 +111,7 @@ class Loss:
         assert AH == H, f'Height of images and flow\'s hyperbolic arctangenses should be the same {H} vs {AH}'
         assert AW == W, f'Width of images and flow\'s hyperbolic arctangenses should be the same {W} vs {AW}'
 
+        self.timers('grid_construction').start()
         # compute grid to sample data (non-normalized)
         #torch.add(self.grid, flow, out=self.grid_holder)
         self.grid_holder = self.grid[:N] + flow
@@ -104,14 +121,21 @@ class Loss:
         self.grid_holder[:, 1] /= (H-1)/2.
         # normalize [0, 2] -> [-1, 1]
         self.grid_holder -= 1
+        self.timers('grid_construction').stop()
+        self.timers('photometric_loss').start()
         photometric = self.photometric_loss(prev_images, next_images, self.grid_holder)
+        self.timers('photometric_loss').stop()
+        self.timers('smoothness_loss').start()
         smoothness = self.smoothness_loss(flow)
+        self.timers('smoothness_loss').stop()
+        self.timers('outborder_loss').start()
         outborder = self.outborder_regularization_loss(flow_arth, self.grid_holder)
+        self.timers('outborder_loss').stop()
         return smoothness, photometric, outborder
 
 class Losses:
-    def __init__(self, shapes, batch_size, device):
-        self.losses = [Loss(shape, batch_size, device) for shape in shapes]
+    def __init__(self, shapes, batch_size, device, timers=FakeTimer()):
+        self.losses = [Loss(shape, batch_size, device, timers) for shape in shapes]
 
     def __call__(self, flows, prev_images, next_images, flow_arths):
         result = []

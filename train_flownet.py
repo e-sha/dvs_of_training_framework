@@ -32,7 +32,7 @@ from utils.loss import Losses
 from utils.timer import SynchronizedWallClockTimer, FakeTimer
 from utils.serializer import Serializer
 
-def init_losses(shape, batch_size, model, device):
+def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
     events = torch.zeros((0, 5), dtype=torch.float32, device=device)
     with torch.no_grad():
         out = model(events,
@@ -40,7 +40,7 @@ def init_losses(shape, batch_size, model, device):
                     torch.tensor([0.04], dtype=torch.float32, device=device),
                     shape, raw=True)
     out_shapes = tuple(tuple(flow.shape[2:]) for flow in out)
-    return Losses(out_shapes, batch_size, device)
+    return Losses(out_shapes, batch_size, device, timers=timers)
 
 def get_commithash():
     return subprocess.check_output('git rev-parse --verify HEAD', shell=True).decode().strip()
@@ -84,7 +84,7 @@ def get_common_dataset_params(args):
                            shape=get_resolution(args),
                            batch_size=args.mbs,
                            pin_memory=True,
-                           num_workers=args.mbs)
+                           num_workers=args.num_workers)
 
 def get_trainset_params(args):
     params = get_common_dataset_params(args)
@@ -231,7 +231,7 @@ def main():
 
     optimizer, scheduler = construct_optimizer_and_scheduler(args, model)
 
-    losses = init_losses(get_resolution(args), args.bs, model, device)
+    losses = init_losses(get_resolution(args), args.bs, model, device, timers=timers)
 
     logger = SummaryWriter(str(args.log_path))
 

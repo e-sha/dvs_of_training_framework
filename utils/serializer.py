@@ -1,5 +1,4 @@
 import io
-import shutil
 from parse import parse
 from pathlib import Path
 import logging
@@ -14,6 +13,23 @@ def _sure_N_args_string(template : str, N: int, err_msg : str):
     except IndexError as e:
         raise logging.error(f'{err_msg} But ' + template + ' is given')
 
+
+def remove_tree(path):
+    if path.is_file():
+        path.unlink()
+        return
+    to_remove = [path]
+    while len(to_remove) > 0:
+        el = to_remove[0]
+        assert el.is_dir()
+        items = [x for x in el.iterdir()]
+        [x.unlink() for x in items if x.is_file()]
+        dirs2remove = [x for x in items if x.is_dir()]
+        if len(dirs2remove) > 0:
+            to_remove = dirs2remove + to_remove
+        else:
+            el.rmdir()
+            to_remove = to_remove[1:]
 
 class Serializer:
     def __init__(self,
@@ -38,8 +54,7 @@ class Serializer:
             return
         temporal_steps = sorted(list(self._temporal_checkpoints.keys()), key=lambda x: -x)
         for step in temporal_steps[self._history_size:]:
-            name = self._temporal_checkpoints.pop(step)
-            shutil.rmtree(str(self._path/name))
+            remove_tree(self._path/self._temporal_checkpoints.pop(step))
             logging.info(f'Checkpoint with ID={step} is removed')
 
     def _find_checkpoints(self):

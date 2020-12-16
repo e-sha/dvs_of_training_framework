@@ -54,6 +54,8 @@ def train_parser():
             dest='checkpointing_interval', default=1000, type=int)
     parser.add_argument('--timers', help='Print information from timers',
             dest='timers', action='store_true')
+    parser.add_argument('--num_workers', help='Number of workers to read data',
+            dest='num_workers', default=32, type=int)
 
     return parser
 
