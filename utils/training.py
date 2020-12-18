@@ -68,7 +68,7 @@ def train(model,
     optimizer.zero_grad()
     timers('batch_construction').start()
     for global_step, (data, start, stop, image1, image2) in enumerate(loader):
-        if global_step * accumulation_steps == num_steps:
+        if global_step // accumulation_steps == num_steps:
             break
         timers('batch_construction').stop()
         timers('batch2gpu').start()
