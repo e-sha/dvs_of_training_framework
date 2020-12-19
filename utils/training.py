@@ -40,7 +40,9 @@ def train(model,
           is_raw=True,
           accumulation_steps=1,
           timers=SynchronizedWallClockTimer(),
-          hooks={}):
+          hooks={},
+          init_step=0,
+          init_samples_passed=0):
     ''' Performs training
 
     Args:
@@ -60,15 +62,15 @@ def train(model,
 
     model.train()
 
-    samples_passed = 0
+    samples_passed = init_samples_passed
     loss_sum = 0
     smooth_sum = []
     photo_sum = []
     out_reg_sum = []
     optimizer.zero_grad()
     timers('batch_construction').start()
-    for global_step, (data, start, stop, image1, image2) in enumerate(loader):
-        if global_step // accumulation_steps == num_steps:
+    for global_step, (data, start, stop, image1, image2) in enumerate(loader, init_step * accumulation_steps):
+        if global_step == num_steps * accumulation_steps:
             break
         timers('batch_construction').stop()
         timers('batch2gpu').start()
@@ -138,7 +140,6 @@ def train(model,
             out_reg_sum = add_loss(out_reg_sum, out_reg)
             loss_sum += loss.item()
             timers('logging').stop()
-
 
         # remove the graph
         timers('free').start()

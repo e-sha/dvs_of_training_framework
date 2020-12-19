@@ -112,5 +112,7 @@ class Serializer:
         model.load_state_dict(checkpoint_state_dict['model'])
         if optimizer:
             optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
-        del checkpoint_state_dict
-        return global_step
+        checkpoint_state_dict.pop('global_step', None)
+        checkpoint_state_dict.pop('model', None)
+        checkpoint_state_dict.pop('optimizer', None)
+        return global_step, checkpoint_state_dict

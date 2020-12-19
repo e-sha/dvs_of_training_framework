@@ -172,7 +172,7 @@ def construct_optimizer(args, params):
         opt = getattr(torch.optim, args.optimizer)
     return opt(params, lr=args.lr, weight_decay=args.wdw, **kwargs)
 
-def construct_optimizer_and_scheduler(args, model):
+def construct_optimizer_and_scheduler(args, model, passed_steps=0):
     is_splitted = hasattr(model, 'quantization_layer')
     representation_start = args.training_steps * args.rs
     if is_splitted:
@@ -189,17 +189,17 @@ def construct_optimizer_and_scheduler(args, model):
     scheduler = optim.lr_scheduler.LambdaLR(optimizer,
                                             lr_lambda=[representation_scheduler] * len(representation_params) + \
                                                       [predictor_scheduler] * len(predictor_params))
+    for _ in range(passed_steps):
+        scheduler.step()
     return optimizer, scheduler
 
-def create_hooks(args, model, optimizer, losses, logger):
+def create_hooks(args, model, optimizer, losses, logger, serializer):
     device = torch.device(args.device)
     loader = get_dataloader(get_valset_params(args))
-    serializer = Serializer(args.model,
-                            args.num_checkpoints,
-                            args.permanent_interval)
     hooks = {'serialization': lambda steps, samples: serializer.checkpoint_model(model,
                                                                                  optimizer,
-                                                                                 global_step=steps),
+                                                                                 global_step=steps,
+                                                                                 samples_passed=samples),
              'validation': lambda step, samples: validate(model,
                                                           device,
                                                           loader,
@@ -229,16 +229,39 @@ def main():
 
     loader = get_dataloader(get_trainset_params(args))
 
-    optimizer, scheduler = construct_optimizer_and_scheduler(args, model)
+    serializer = Serializer(args.model,
+                            args.num_checkpoints,
+                            args.permanent_interval)
+    if not args.do_not_continue:
+        last_step = serializer.list_known_steps()[-1]
+    else:
+        last_step = -1
+
+    optimizer, scheduler = construct_optimizer_and_scheduler(args, model, passed_steps=last_step)
 
     losses = init_losses(get_resolution(args), args.bs, model, device, timers=timers)
 
     logger = SummaryWriter(str(args.log_path))
 
-    periodic_hooks, hooks = create_hooks(args, model, optimizer, losses, logger)
+    periodic_hooks, hooks = create_hooks(args,
+                                         model,
+                                         optimizer,
+                                         losses,
+                                         logger,
+                                         serializer)
 
-    hooks['serialization'](0, 0)
-    hooks['validation'](0, 0)
+    if not args.do_not_continue:
+        global_step, state = serializer.load_checkpoint(model,
+                                                        last_step,
+                                                        optimizer=optimizer,
+                                                        device=device)
+        samples_passed = state.pop('samples_passed', global_step * args.bs)
+    else:
+        global_step = 0
+        samples_passed = 0
+        hooks['serialization'](global_step, samples_passed)
+
+    hooks['validation'](global_step, samples_passed)
 
     train(model,
           device,
@@ -252,9 +275,11 @@ def main():
           is_raw=args.is_raw,
           accumulation_steps=args.accum_step,
           timers=timers,
-          hooks=periodic_hooks)
+          hooks=periodic_hooks,
+          init_step=global_step,
+          init_samples_passed=samples_passed)
 
-    samples = args.training_steps * args.accum_step * args.bs
+    samples = samples_passed + (args.training_steps - global_step) * args.bs
     hooks['serialization'](args.training_steps, samples)
     hooks['validation'](args.training_steps, samples)
 

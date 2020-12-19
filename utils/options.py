@@ -56,6 +56,8 @@ def train_parser():
             dest='timers', action='store_true')
     parser.add_argument('--num_workers', help='Number of workers to read data',
             dest='num_workers', default=32, type=int)
+    parser.add_argument('--do_not_continue', help='Do not continue training from checkpoints',
+            dest='do_not_continue', action='store_true')
 
     return parser
 
