@@ -7,8 +7,6 @@ import os
 import sys
 sys.path.append(os.getcwd())
 
-from dvs_optical_flow_ev_flownet import OpticalFlow
-
 from utils.testing import evaluate
 from utils.data import central_shift, EventCrop, ImageCrop
 from utils.dataset import read_info
