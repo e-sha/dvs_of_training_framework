@@ -1,8 +1,11 @@
 import io
+import logging
+import math
+import os
 from parse import parse
 from pathlib import Path
-import logging
 import torch
+import typing
 
 
 def _sure_N_args_string(template : str, N: int, err_msg : str):
@@ -33,10 +36,10 @@ def remove_tree(path):
 
 class Serializer:
     def __init__(self,
-                 path : Path,                          # path to write checkpoints
-                 keep_checkpoints_max : int,           # number of last checkpoints to keep
-                 permanent_checkpoint_interval : int,  # interval between permanent checkpoints. Don't store permanent checkpoints if value is 0
-                 name_template='step_{}.pt'            # template for a model id
+                 path : Path,                           # path to write checkpoints
+                 keep_checkpoints_max=math.inf,   # number of last checkpoints to keep
+                 permanent_checkpoint_interval=1, # interval between permanent checkpoints. Don't store permanent checkpoints if value is 0
+                 name_template='step_{}.pt'             # template for a model id
                  ):
         self._path = Path(path)
         self._history_size = keep_checkpoints_max
@@ -100,14 +103,20 @@ class Serializer:
         steps = list(self._temporal_checkpoints.keys()) + list(self._permanent_checkpoints.keys())
         return sorted(steps)
 
+    def read_state_dict(self, global_step : int, map_location=None):
+        return torch.load(self._id2path(global_step), map_location=map_location)
+
+    def finalize(self, global_step : int, path : typing.Union[str, os.PathLike, typing.BinaryIO], map_location=None):
+        checkpoint_state_dict = self.read_state_dict(global_step, map_location)
+        torch.save(checkpoint_state_dict['model'], path)
+
     def load_checkpoint(self, model, global_step, optimizer=None, device=None):
         """Utility function for checkpointing model + optimizer dictionaries
            The main purpose for this is to be able to resume training from that instant again
         """
         if global_step not in self._temporal_checkpoints and global_step not in self._permanent_checkpoints:
             raise ValueError(f'Checkpoint for step {global_step} not found')
-        path = self._id2path(global_step)
-        checkpoint_state_dict = torch.load(path, map_location=device)
+        checkpoint_state_dict = self.read_state_dict(global_step, device)
         global_step = checkpoint_state_dict['global_step']
         model.load_state_dict(checkpoint_state_dict['model'])
         if optimizer:

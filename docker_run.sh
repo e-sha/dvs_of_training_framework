@@ -9,9 +9,11 @@ MODELS_PATH=$SCRATCH_PATH/models
 
 set -x -e 
 
-nvidia-docker run -it \
+docker run -it \
+  --gpus all \
   --net=host \
   --volume="$DATA_PATH:/data/training" \
+  --volume="$(pwd)/packages:/packages" \
   --volume="$(pwd)/data/info:/data/info" \
   --volume="$(pwd)/../data/raw:/data/raw" \
   --volume="$MODELS_PATH:/models" \

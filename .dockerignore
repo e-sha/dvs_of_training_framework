@@ -1,4 +1,6 @@
 *
+!packages
+!*Net
 !requirements.txt
 !*.py
 !build.sh

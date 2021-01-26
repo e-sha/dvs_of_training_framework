@@ -1,6 +1,8 @@
 import numpy as np
 import yaml
 import itertools
+from types import SimpleNamespace
+
 from .eval import estimate_corresponding_gt_flow, flow_error_dense
 from .data import get_count_image, frame_generator
 
@@ -98,9 +100,11 @@ def ravel_config(config):
     cfg = {k: option2list(config[k])
             for k in ['start', 'stop', 'step', 'crop_type', 'is_car']}
     cfg['test_shape'] = shape2list(config['test_shape'])
-    res = []
     for start, stop, step, test_shape, crop_type, is_car in itertools.product(cfg['start'],
             cfg['stop'], cfg['step'], cfg['test_shape'], cfg['crop_type'], cfg['is_car']):
-        res.append({'start':start, 'stop': stop, 'step': step,
-            'test_shape': test_shape, 'crop_type': crop_type, 'is_car': is_car})
-    return res
+        yield SimpleNamespace(start=start,
+                              stop=stop,
+                              step=step,
+                              test_shape=test_shape,
+                              crop_type=crop_type,
+                              is_car=is_car)

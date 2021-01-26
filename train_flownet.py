@@ -7,8 +7,8 @@ import yaml
 import subprocess
 from types import SimpleNamespace
 import inspect
-import importlib.util
 from functools import partial
+from argparse import ArgumentParser
 
 script_dir = Path(__file__).resolve().parent
 ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
@@ -26,11 +26,12 @@ from RAdam.radam import RAdam
 
 from utils.testing import evaluate
 from utils.dataset import read_info, Dataset, IterableDataset, collate_wrapper
-from utils.options import train_parser, validate_args, options2model_kwargs
+from utils.options import add_train_arguments, validate_train_args, options2model_kwargs
 from utils.training import train, validate, make_hook_periodic
 from utils.loss import Losses
 from utils.timer import SynchronizedWallClockTimer, FakeTimer
 from utils.serializer import Serializer
+from utils.model import import_module, filter_kwargs
 
 def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
     events = torch.zeros((0, 5), dtype=torch.float32, device=device)
@@ -66,11 +67,11 @@ def choose_data_path(args):
     return args
 
 def parse_args():
-    args = train_parser().parse_args()
-    args = validate_args(args)
+    parser = ArgumentParser()
+    args = add_train_arguments(parser).parse_args()
+    args = validate_train_args(args)
     args = choose_data_path(args)
     write_params(args.model, args)
-    args.is_raw = not args.ev_images
     return args
 
 def get_resolution(args):
@@ -122,24 +123,6 @@ def get_dataloader(params):
                                        num_workers=params.num_workers,
                                        pin_memory=params.pin_memory,
                                        **loader_kwargs)
-
-
-def import_module(module_name, module_path):
-    module_spec = importlib.util.find_spec(module_name, module_path)
-    assert module_spec is not None, f'Module: {module_name} at {Path(module_path).resolve()} not found'
-    module = importlib.util.module_from_spec(module_spec)
-    module_spec.loader.exec_module(module)
-    return module
-
-def filter_kwargs(func, kwargs):
-    signature = inspect.signature(func)
-    keys2use = []
-    for key in signature.parameters:
-        if signature.parameters[key].kind == inspect.Parameter.VAR_KEYWORD:
-            return kwargs
-        if key in kwargs:
-            keys2use.append(key)
-    return {key: kwargs[key] for key in keys2use}
 
 
 def init_model(args, device):
@@ -232,10 +215,9 @@ def main():
     serializer = Serializer(args.model,
                             args.num_checkpoints,
                             args.permanent_interval)
-    if not args.do_not_continue:
-        last_step = serializer.list_known_steps()[-1]
-    else:
-        last_step = -1
+
+    args.do_not_continue = args.do_not_continue or len(serializer.list_known_steps()) == 0
+    last_step = 0 if args.do_not_continue else serializer.list_known_steps()[-1]
 
     optimizer, scheduler = construct_optimizer_and_scheduler(args, model, passed_steps=last_step)
 
@@ -263,21 +245,29 @@ def main():
 
     hooks['validation'](global_step, samples_passed)
 
-    train(model,
-          device,
-          loader,
-          optimizer,
-          args.training_steps,
-          scheduler=scheduler,
-          evaluator=losses,
-          logger=logger,
-          weights=args.loss_weights,
-          is_raw=args.is_raw,
-          accumulation_steps=args.accum_step,
-          timers=timers,
-          hooks=periodic_hooks,
-          init_step=global_step,
-          init_samples_passed=samples_passed)
+    if args.profiling:
+        prof = torch.autograd.profiler.profile().__enter__()
+    try:
+        train(model,
+              device,
+              loader,
+              optimizer,
+              args.training_steps,
+              scheduler=scheduler,
+              evaluator=losses,
+              logger=logger,
+              weights=args.loss_weights,
+              is_raw=args.is_raw,
+              accumulation_steps=args.accum_step,
+              timers=timers,
+              hooks=periodic_hooks,
+              init_step=global_step,
+              init_samples_passed=samples_passed)
+    finally:
+        if args.profiling:
+            prof.__exit__(None, None, None)
+            print(prof.key_averages(group_by_stack_n=5).table(sort_by='self_cpu_time_total'))
+            prof.export_chrome_trace('tracefile.json')
 
     samples = samples_passed + (args.training_steps - global_step) * args.bs
     hooks['serialization'](args.training_steps, samples)
