@@ -1,14 +1,14 @@
-from pathlib import Path
-import numpy as np
-import h5py
-import sys
-import os
-import yaml
-import subprocess
-from types import SimpleNamespace
-import inspect
-from functools import partial
 from argparse import ArgumentParser
+from functools import partial
+import h5py
+import inspect
+import numpy as np
+import os
+from pathlib import Path
+import subprocess
+import sys
+from types import SimpleNamespace
+import yaml
 
 script_dir = Path(__file__).resolve().parent
 ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
@@ -24,14 +24,15 @@ import torch.nn as nn
 from ranger import Ranger
 from RAdam.radam import RAdam
 
-from utils.testing import evaluate
 from utils.dataset import read_info, Dataset, IterableDataset, collate_wrapper
-from utils.options import add_train_arguments, validate_train_args, options2model_kwargs
-from utils.training import train, validate, make_hook_periodic
 from utils.loss import Losses
-from utils.timer import SynchronizedWallClockTimer, FakeTimer
-from utils.serializer import Serializer
 from utils.model import import_module, filter_kwargs
+from utils.options import add_train_arguments, validate_train_args, options2model_kwargs
+from utils.profiling import Profiler
+from utils.serializer import Serializer
+from utils.testing import evaluate
+from utils.timer import SynchronizedWallClockTimer, FakeTimer
+from utils.training import train, validate, make_hook_periodic
 
 def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
     events = torch.zeros((0, 5), dtype=torch.float32, device=device)
@@ -245,9 +246,7 @@ def main():
 
     hooks['validation'](global_step, samples_passed)
 
-    if args.profiling:
-        prof = torch.autograd.profiler.profile().__enter__()
-    try:
+    with Profiler(args.profiling, args.model/'profiling'):
         train(model,
               device,
               loader,
@@ -263,11 +262,6 @@ def main():
               hooks=periodic_hooks,
               init_step=global_step,
               init_samples_passed=samples_passed)
-    finally:
-        if args.profiling:
-            prof.__exit__(None, None, None)
-            print(prof.key_averages(group_by_stack_n=5).table(sort_by='self_cpu_time_total'))
-            prof.export_chrome_trace('tracefile.json')
 
     samples = samples_passed + (args.training_steps - global_step) * args.bs
     hooks['serialization'](args.training_steps, samples)
