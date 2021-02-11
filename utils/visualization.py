@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 def flow2img(flow_x, flow_y):
     flows = np.stack((flow_x, flow_y), axis=2)
     mag = np.linalg.norm(flows, axis=2)

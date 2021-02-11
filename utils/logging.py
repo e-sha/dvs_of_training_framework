@@ -1,8 +1,6 @@
 import logging
 import sys
 
-import torch.distributed as dist
-
 
 class LoggerFactory:
     @staticmethod

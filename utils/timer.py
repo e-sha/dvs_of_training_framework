@@ -6,12 +6,15 @@ from utils.logging import logger
 
 
 def get_rank():
-    return torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_rank()
+    return 0
 
 
 def print_rank_0(message):
     if get_rank() == 0:
         print(message)
+
 
 class FakeTimer:
     class Timer:
@@ -44,6 +47,7 @@ class FakeTimer:
 
     def log(self, names, normalizer=1.0, reset=True, memory_breakdown=False):
         pass
+
 
 class SynchronizedWallClockTimer:
     """Group of timers. Borrowed from Nvidia Megatron code"""
@@ -100,15 +104,18 @@ class SynchronizedWallClockTimer:
 
     @staticmethod
     def memory_usage():
-        alloc = "mem_allocated: {:.4f} GB".format(torch.cuda.memory_allocated() /
-                                                  (1024 * 1024 * 1024))
+        alloc = "mem_allocated: {:.4f} GB" \
+                .format(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
         max_alloc = "max_mem_allocated: {:.4f} GB".format(
             torch.cuda.max_memory_allocated() / (1024 * 1024 * 1024))
-        cache = "cache_allocated: {:.4f} GB".format(torch.cuda.memory_cached() /
-                                                    (1024 * 1024 * 1024))
+        cache = "cache_allocated: {:.4f} GB" \
+                .format(torch.cuda.memory_cached() / (1024 * 1024 * 1024))
         max_cache = "max_cache_allocated: {:.4f} GB".format(
             torch.cuda.max_memory_cached() / (1024 * 1024 * 1024))
-        return " | {} | {} | {} | {}".format(alloc, max_alloc, cache, max_cache)
+        return " | {} | {} | {} | {}".format(alloc,
+                                             max_alloc,
+                                             cache,
+                                             max_cache)
 
     def log(self, names, normalizer=1.0, reset=True, memory_breakdown=False):
         """Log a group of timers."""
@@ -120,8 +127,8 @@ class SynchronizedWallClockTimer:
                     reset=reset) * 1000.0 / normalizer
                 strings.append('{}: {:.2f}'.format(name, elapsed_time))
 
-        # TODO: use our logging utilitied to selectively print. Useful for model
-        # parallelism because rank=0 is too restrictive.
+        # TODO: use our logging utilitied to selectively print.
+        # Useful for model parallelism because rank=0 is too restrictive.
         print_rank_0(' | '.join(strings))
 
 
@@ -186,11 +193,11 @@ class ThroughputTimer():
                 if self.monitor_memory:
                     virt_mem = psutil.virtual_memory()
                     swap = psutil.swap_memory()
-                    self.logging("{}/{}, vm percent: {}, swap percent: {}".format(
-                        self.epoch_count,
-                        self.local_step_count,
-                        virt_mem.percent,
-                        swap.percent))
+                    self.logging("{}/{}, vm percent: {}, swap percent: {}"
+                                 .format(self.epoch_count,
+                                         self.local_step_count,
+                                         virt_mem.percent,
+                                         swap.percent))
 
     def avg_samples_per_sec(self):
         if self.total_step_count > 0:

@@ -1,4 +1,3 @@
-import io
 import logging
 import math
 import os
@@ -8,13 +7,13 @@ import torch
 import typing
 
 
-def _sure_N_args_string(template : str, N: int, err_msg : str):
+def _sure_N_args_string(template: str, N: int, err_msg: str):
     try:
         res = template.format(*([0]*N))
         if N != 0 and res == template:
             raise IndexError
-    except IndexError as e:
-        raise logging.error(f'{err_msg} But ' + template + ' is given')
+    except IndexError:
+        raise logging.error(f'{err_msg} But {template} is given')
 
 
 def remove_tree(path):
@@ -34,12 +33,17 @@ def remove_tree(path):
             el.rmdir()
             to_remove = to_remove[1:]
 
+
 class Serializer:
     def __init__(self,
-                 path : Path,                           # path to write checkpoints
-                 keep_checkpoints_max=math.inf,   # number of last checkpoints to keep
-                 permanent_checkpoint_interval=1, # interval between permanent checkpoints. Don't store permanent checkpoints if value is 0
-                 name_template='step_{}.pt'             # template for a model id
+                 path: Path,  # path to write checkpoints
+                 keep_checkpoints_max=math.inf,   # number of last
+                                                  # checkpoints to keep
+                 permanent_checkpoint_interval=1,  # interval between
+                                                   # permanent checkpoints.
+                                                   # Don't store permanent
+                                                   # checkpoints if value is 0
+                 name_template='step_{}.pt'  # template for a model id
                  ):
         self._path = Path(path)
         self._history_size = keep_checkpoints_max
@@ -48,14 +52,16 @@ class Serializer:
         self._temporal_checkpoints = dict()
         _sure_N_args_string(name_template, 1,
                             'checkpoint name template for the serializer '
-                            'has to use exactly one argument -- checkpoint id.')
+                            'has to use exactly one argument - '
+                            'checkpoint id.')
         self._name_template = name_template
         self._find_checkpoints()
 
     def _remove_old(self):
         if self._history_size <= 0:
             return
-        temporal_steps = sorted(list(self._temporal_checkpoints.keys()), key=lambda x: -x)
+        temporal_steps = sorted(list(self._temporal_checkpoints.keys()),
+                                key=lambda x: -x)
         for step in temporal_steps[self._history_size:]:
             remove_tree(self._path/self._temporal_checkpoints.pop(step))
             logging.info(f'Checkpoint with ID={step} is removed')
@@ -63,23 +69,29 @@ class Serializer:
     def _find_checkpoints(self):
         names = list(map(lambda x: x.name, self._path.iterdir()))
         keys = [parse(self._name_template, str(name)) for name in names]
-        known_checkpoints = {int(step[0]): name for step, name in zip(keys, names)
+        known_checkpoints = {int(step[0]): name
+                             for step, name in zip(keys, names)
                              if step is not None and step[0].isdigit()}
         if self._permanent_interval > 0:
-            self._permanent_checkpoints = {s: n for s, n in known_checkpoints.items() if
-                                           s % self._permanent_interval == 0}
-        self._temporal_checkpoints = {s: n for s, n in known_checkpoints.items() if
-                                      s not in self._permanent_checkpoints}
+            self._permanent_checkpoints = {
+                    s: n
+                    for s, n in known_checkpoints.items()
+                    if s % self._permanent_interval == 0}
+        self._temporal_checkpoints = {s: n
+                                      for s, n in known_checkpoints.items()
+                                      if s not in self._permanent_checkpoints}
 
     def _id2path(self, global_step):
         return self._path/self._name_template.format(global_step)
 
     def checkpoint_model(self, model, optimizer, global_step, **kwargs):
         """Utility function for checkpointing model + optimizer dictionaries
-           The main purpose for this is to be able to resume training from that instant again
+           The main purpose for this is to be able to resume training from
+           that instant again
         """
         path = self._id2path(global_step)
-        if self._permanent_interval > 0 and global_step % self._permanent_interval == 0:
+        if (self._permanent_interval > 0 and
+                global_step % self._permanent_interval == 0):
             self._permanent_checkpoints[global_step] = path.name
         else:
             self._temporal_checkpoints[global_step] = path.name
@@ -94,27 +106,36 @@ class Serializer:
         torch.save(checkpoint_state_dict, path)
 
         self._remove_old()
-        status_msg = f'checkpointing: PATH={path.parent}, ckpt_id={path.name}'
+        # status_msg = f'checkpointing: PATH={path.parent}, ' \
+        #              f'ckpt_id={path.name}'
 
     def has_checkpoints(self):
-        return len(self._temporal_checkpoints) + len(self._permanent_checkpoints) > 0
+        return (len(self._temporal_checkpoints) +
+                len(self._permanent_checkpoints)) > 0
 
     def list_known_steps(self):
-        steps = list(self._temporal_checkpoints.keys()) + list(self._permanent_checkpoints.keys())
+        steps = (list(self._temporal_checkpoints.keys()) +
+                 list(self._permanent_checkpoints.keys()))
         return sorted(steps)
 
-    def read_state_dict(self, global_step : int, map_location=None):
-        return torch.load(self._id2path(global_step), map_location=map_location)
+    def read_state_dict(self, global_step: int, map_location=None):
+        return torch.load(self._id2path(global_step),
+                          map_location=map_location)
 
-    def finalize(self, global_step : int, path : typing.Union[str, os.PathLike, typing.BinaryIO], map_location=None):
+    def finalize(self,
+                 global_step: int,
+                 path: typing.Union[str, os.PathLike, typing.BinaryIO],
+                 map_location: typing.Union[str, torch.device, None] = None):
         checkpoint_state_dict = self.read_state_dict(global_step, map_location)
         torch.save(checkpoint_state_dict['model'], path)
 
     def load_checkpoint(self, model, global_step, optimizer=None, device=None):
         """Utility function for checkpointing model + optimizer dictionaries
-           The main purpose for this is to be able to resume training from that instant again
+           The main purpose for this is to be able to resume training from
+           that instant again
         """
-        if global_step not in self._temporal_checkpoints and global_step not in self._permanent_checkpoints:
+        if (global_step not in self._temporal_checkpoints and
+                global_step not in self._permanent_checkpoints):
             raise ValueError(f'Checkpoint for step {global_step} not found')
         checkpoint_state_dict = self.read_state_dict(global_step, device)
         global_step = checkpoint_state_dict['global_step']
