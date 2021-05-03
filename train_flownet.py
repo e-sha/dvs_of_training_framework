@@ -23,11 +23,6 @@ from utils.training import train, validate, make_hook_periodic
 
 
 script_dir = Path(__file__).resolve().parent
-ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
-sys.path.append(str(ranger_path))
-
-from RAdam.radam import RAdam
-from ranger import Ranger
 
 
 def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
@@ -160,8 +155,14 @@ def construct_optimizer(args, params):
         opt = optim.AdamW
         kwargs = {'amsgrad': True}
     elif args.optimizer == 'RADAM':
+        from RAdam.radam import RAdam
         opt = RAdam
     elif args.optimizer == 'RANGER':
+        ranger_path = script_dir/'Ranger-Deep-Learning-Optimizer'
+        sys.path.append(str(ranger_path))
+
+        from ranger import Ranger
+
         opt = Ranger
     else:
         assert hasattr(torch.optim, args.optimizer), 'Unknown optimizer type'

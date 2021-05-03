@@ -1,15 +1,12 @@
 from argparse import ArgumentParser
-from copy import deepcopy
 import h5py
-import math
 import multiprocessing
 import numpy as np
-import os
 from pathlib import Path
 import pickle
 import re
-import sys
 import tempfile
+import time
 import torch
 import torch.utils.tensorboard
 from types import SimpleNamespace
@@ -17,15 +14,18 @@ from types import SimpleNamespace
 from utils.data import central_shift, EventCrop, ImageCrop
 from utils.dataset import read_info
 from utils.model import filter_kwargs, import_module
-from utils.options import add_test_arguments, validate_test_args, options2model_kwargs
+from utils.options import add_test_arguments, validate_test_args
+from utils.options import options2model_kwargs
 from utils.serializer import Serializer
 from utils.testing import evaluate, read_config, ravel_config
+
 
 def parse_args():
     parser = ArgumentParser()
     args = add_test_arguments(parser).parse_args()
     args = validate_test_args(args)
     return args
+
 
 def get_output_path(args):
     if args.model.suffix == '.pt':
@@ -35,17 +35,22 @@ def get_output_path(args):
         model_path = serializer._id2path(args.step)
     return args.output/(model_path.stem + '.pkl')
 
+
 def preprocess_args(args):
     args.output = get_output_path(args)
     args.is_temporary_model = True
     f = tempfile.NamedTemporaryFile(suffix='.pt', delete=False)
-    Serializer(args.model).finalize(args.step, f.name, map_location=args.device)
+    Serializer(args.model).finalize(args.step,
+                                    f.name,
+                                    map_location=args.device)
     args.model = Path(f.name)
     f.close()
     return args
 
+
 def init_model(args, test_shape):
-    module = import_module(f'{args.flownet_path}.__init__', args.flownet_path/'__init__.py')
+    module = import_module(f'{args.flownet_path}.__init__',
+                           args.flownet_path/'__init__.py')
     model_kwargs = options2model_kwargs(args)
     model_kwargs = filter_kwargs(module.OpticalFlow, model_kwargs)
     model_kwargs.update({'device': args.device})
@@ -54,24 +59,28 @@ def init_model(args, test_shape):
     else:
         return module.OpticalFlow(test_shape, model=args.model, **model_kwargs)
 
+
 def load_events(path):
     with h5py.File(str(path), 'r') as data:
-        events = np.array(data['davis']['left']['events'], dtype=np.float64).T
-        image_ts = np.array(data['davis']['left']['image_raw_ts'], dtype=np.float64)
+        events = np.array(data['davis']['left']['events'],
+                          dtype=np.float64).T
+        image_ts = np.array(data['davis']['left']['image_raw_ts'],
+                            dtype=np.float64)
     return events, image_ts
+
 
 def load_gt(path):
     gt = np.load(str(path))
     return {k: gt[k] for k in gt.keys()}
 
-def get_preprocessing_functions(imshape, test_shape, crop_type):
-    pred_postproc_fun = None
 
+def get_preprocessing_functions(imshape, test_shape, crop_type):
     if crop_type == 'central':
         box = list(central_shift(imshape, test_shape)) + test_shape
         return EventCrop(box), ImageCrop(box)
     else:
         raise ValueError(f'Unknown crop type "{crop_type}"')
+
 
 def postprocess_config(config, dataset):
     if config.start is None:
@@ -85,15 +94,18 @@ def postprocess_config(config, dataset):
         config.stop += dataset.first_ts
     return config
 
+
 def generate_frames(cfg, image_ts):
     b, e = np.searchsorted(image_ts, [cfg.start, cfg.stop])
-    return list(zip(image_ts[b : e - cfg.step], image_ts[b + cfg.step : e]))
+    return list(zip(image_ts[b: e - cfg.step], image_ts[b + cfg.step: e]))
+
 
 def seq2paths(dataset_path, seq_name):
     seq_type = re.sub(r'\d+$', '', seq_name)
     seq_file = dataset_path/seq_type/(seq_name+'_data.hdf5')
     gt_file = dataset_path/'FlowGT'/seq_type/(seq_name+'_gt_flow_dist.npz')
     return seq_file, gt_file
+
 
 def perform_single_test(args, cfg, dataset):
     cfg = postprocess_config(cfg, dataset)
@@ -103,17 +115,24 @@ def perform_single_test(args, cfg, dataset):
     dataset.frames = generate_frames(cfg, dataset.image_ts)
 
     # prepare event preprocesser
-    event_preproc_fun, gt_proc_fun = get_preprocessing_functions(dataset.imshape,
-                                                                 cfg.test_shape,
-                                                                 cfg.crop_type)
+    event_preproc_fun, gt_proc_fun = get_preprocessing_functions(
+            dataset.imshape,
+            cfg.test_shape,
+            cfg.crop_type)
 
     # generate optical flow predictor
     of = init_model(args, cfg.test_shape)
 
-    return evaluate(of, dataset.events, dataset.frames, dataset.gt, is_car=dataset.is_car,
+    return evaluate(of,
+                    dataset.events,
+                    dataset.frames,
+                    dataset.gt,
+                    is_car=dataset.is_car,
                     event_preproc_fun=event_preproc_fun,
                     pred_postproc_fun=None,
-                    gt_proc_fun=gt_proc_fun, log=False)
+                    gt_proc_fun=gt_proc_fun,
+                    log=False)
+
 
 def process_single(args):
     args = preprocess_args(args)
@@ -130,13 +149,13 @@ def process_single(args):
 
     results = []
 
-    for ds_name, ds_config in config.items(): # process all datasets
+    for ds_name, ds_config in config.items():  # process all datasets
         # dir with dataset data
         ds_dir = data_dir/ds_name
         # load info
         info_file = info_dir/(ds_name + '.hdf5')
         ds_info = read_info(str(info_file))
-        for seq_name, seq_config in ds_config.items(): # process all sequences
+        for seq_name, seq_config in ds_config.items():  # process all sequences
             seq_file, gt_file = seq2paths(ds_dir, seq_name)
 
             dataset = SimpleNamespace(name=seq_name)
@@ -152,17 +171,22 @@ def process_single(args):
                 cfg.sequence = seq_name
                 cfg.mAEE, cfg.mpAEE = perform_single_test(args, cfg, dataset)
                 results.append(cfg)
-                print(f'[{cfg.sequence}, {cfg.start}, {cfg.stop}, {cfg.step}, {cfg.test_shape}, {cfg.crop_type}, {cfg.is_car}]: Mean AEE: {cfg.mAEE:.6f}, mean %AEE: {cfg.mpAEE*100:.6f}')
+                print(f'[{cfg.sequence}, {cfg.start}, {cfg.stop}, {cfg.step}, '
+                      f'{cfg.test_shape}, {cfg.crop_type}, {cfg.is_car}]: '
+                      f'Mean AEE: {cfg.mAEE:.6f}, '
+                      f'mean %AEE: {cfg.mpAEE*100:.6f}')
     with args.output.open('wb') as f:
         pickle.dump(results, f)
     if args.is_temporary_model:
         args.model.unlink()
+
 
 def get_samples_passed(args):
     serializer = Serializer(args.model)
     model_path = serializer._id2path(args.step)
     data = torch.load(model_path, map_location='cpu')
     return data.get('samples_passed', data['global_step'] * args.bs)
+
 
 class GPUPool:
     def __init__(self, pool, gpus, tests_per_gpu, timeout=1):
@@ -195,9 +219,7 @@ class GPUPool:
         return best_device
 
     def __call__(self, func, args_list):
-        devices = self._gpus
         results = {device: [] for device in self._gpus}
-        with self._pool:
         for args in args_list:
             decrease = False
             while True:
@@ -213,22 +235,29 @@ class GPUPool:
             for r in device_results:
                 r.wait()
 
+
 def process_all(args):
     args.__dict__.pop('step', None)
     serializer = Serializer(args.model)
-    all_args = [SimpleNamespace(step=s, **args.__dict__) for s in serializer.list_known_steps()]
+    all_args = [SimpleNamespace(step=s, **args.__dict__)
+                for s in serializer.list_known_steps()]
     with multiprocessing.Pool(args.tests_per_gpu) as p:
-        GPUPool(p, gpus, tests_per_gpu)(process_single, all_args)
-        #p.map(process_single, all_args)
+        GPUPool(p, args.gpus, args.tests_per_gpu)(process_single, all_args)
     writer = torch.utils.tensorboard.SummaryWriter(args.output/'log')
     for step_args in all_args:
         samples_passed = get_samples_passed(step_args)
         with get_output_path(step_args).open('rb') as f:
             results = pickle.load(f)
         for result in results:
-            tag = f'{result.dataset}/{result.sequence}/{result.step}/{result.start}/{result.stop}'
-            writer.add_scalar(f'Test/mean AEE/{tag}', result.mAEE, samples_passed)
-            writer.add_scalar(f'Test/mean %AEE/{tag}', result.mpAEE * 100, samples_passed)
+            tag = f'{result.dataset}/{result.sequence}/{result.step}/' \
+                  f'{result.start}/{result.stop}'
+            writer.add_scalar(f'Test/mean AEE/{tag}',
+                              result.mAEE,
+                              samples_passed)
+            writer.add_scalar(f'Test/mean %AEE/{tag}',
+                              result.mpAEE * 100,
+                              samples_passed)
+
 
 def main():
     args = parse_args()
@@ -237,5 +266,6 @@ def main():
     else:
         process_single(args)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     main()
