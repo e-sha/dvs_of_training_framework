@@ -66,12 +66,13 @@ def choose_data_path(args):
     return args
 
 
-def parse_args():
+def parse_args(args, is_write=True):
     parser = ArgumentParser()
-    args = add_train_arguments(parser).parse_args()
+    args = add_train_arguments(parser).parse_args(args)
     args = validate_train_args(args)
     args = choose_data_path(args)
-    write_params(args.model, args)
+    if is_write:
+        write_params(args.model, args)
     return args
 
 
@@ -230,7 +231,7 @@ def create_hooks(args, model, optimizer, losses, logger, serializer):
 def main():
     # torch.autograd.set_detect_anomaly(True)
 
-    args = parse_args()
+    args = parse_args(sys.argv[1:])
 
     device = torch.device(args.device)
     torch.cuda.set_device(device)

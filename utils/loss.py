@@ -170,7 +170,7 @@ class Loss:
         smoothness = self.smoothness_loss(flow)
         self.timers('smoothness_loss').stop()
         self.timers('outborder_loss').start()
-        outborder = self.outborder_regularization_loss(flow_arth,
+        outborder = self.outborder_regularization_loss(flow,
                                                        self.grid_holder)
         self.timers('outborder_loss').stop()
         return smoothness, photometric, outborder
