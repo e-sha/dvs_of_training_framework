@@ -19,9 +19,10 @@ def interpolate(img, shape):
 def charbonier_loss(delta,
                     alpha: float = 0.45,
                     epsilon: float = 1e-3,
-                    denominator: Optional[torch.Tensor] = None):
+                    denominator: Optional[torch.Tensor] = None,
+                    device: Optional[torch.device] = torch.device('cpu')):
     if delta.numel() == 0:
-        return 0
+        return torch.zeros([1], dtype=torch.float32, device=device)
     delta = (delta.pow(2) + epsilon*epsilon).pow(alpha)
     if denominator is None:
         return delta.mean()
@@ -65,7 +66,7 @@ class Loss:
 
     def photometric_loss(self, prev_images, next_images, warp_grid):
         warped = self.warp_images_with_flow(next_images, warp_grid)
-        return charbonier_loss(warped - prev_images)
+        return charbonier_loss(warped - prev_images, device=next_images.device)
 
     def smoothness_loss(self, flow):
         ucrop = flow[..., 1:, :]
@@ -107,7 +108,9 @@ class Loss:
             denominators = denominators[idx] * N
 
         values = flow_arth[mask]
-        loss = charbonier_loss(values, denominator=denominators)
+        loss = charbonier_loss(values,
+                               denominator=denominators,
+                               device=flow_arth.device)
         return loss
 
     def __call__(self, prev_images, next_images, flow, flow_arth):

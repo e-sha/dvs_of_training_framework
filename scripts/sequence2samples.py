@@ -5,26 +5,36 @@ import yaml
 from tqdm import tqdm
 import os
 import sys
+
+
 sys.path.append(os.getcwd())
 
-from utils.testing import evaluate
-from utils.data import central_shift, EventCrop, ImageCrop
-from utils.dataset import read_info
+try:
+    from utils.dataset import read_info
+except ImportError:
+    exit(-1)
 
-is_inside = 'INSIDE_DOCKER' in os.environ.keys() and bool(os.environ['INSIDE_DOCKER'])
+
+is_inside = 'INSIDE_DOCKER' in os.environ.keys() and \
+            bool(os.environ['INSIDE_DOCKER'])
+
 
 def write_samples(events, images, image_ts, img2event_map, out_dir, ts0):
-    for i, (b, e, start_ts, stop_ts) in tqdm(enumerate(zip(
-        img2event_map[:-1],
-        img2event_map[1:],
-        image_ts[:-1,],
-        image_ts[1:])), total=img2event_map.size-1):
+    for i, (b, e, start_ts, stop_ts) in tqdm(enumerate(zip(img2event_map[:-1],
+                                                           img2event_map[1:],
+                                                           image_ts[:-1],
+                                                           image_ts[1:])),
+                                             total=img2event_map.size-1):
 
-        frame_events = np.array(events[b+1:e+1]) # very strange fix, but it is required
-        assert frame_events[0, 2] >= start_ts, 'The first event is before the first image'
+        # very strange fix, but it is required
+        frame_events = np.array(events[b+1:e+1])
+        assert frame_events[0, 2] >= start_ts, 'The first event is before ' \
+                                               'the first image'
         assert b < 0 or events[b, 2] <= start_ts, 'Some events are missed'
-        assert frame_events[-1, 2] <= stop_ts, 'The last event is after the second image'
-        assert e+1 >= events.shape[0] or events[e+1, 2] >= stop_ts, 'Some events are missed'
+        assert frame_events[-1, 2] <= stop_ts, \
+               'The last event is after the second image'
+        assert e+1 >= events.shape[0] or events[e+1, 2] >= stop_ts, \
+               'Some events are missed'
         frame_events[:, 2] -= ts0
         image1 = np.array(images[i])
         image2 = np.array(images[i+1])
@@ -35,13 +45,14 @@ def write_samples(events, images, image_ts, img2event_map, out_dir, ts0):
             of.create_dataset('start', data=start_ts - ts0)
             of.create_dataset('stop', data=stop_ts - ts0)
 
+
 script_dir = Path(__file__).resolve().parent.parent
 if is_inside:
-  data_dir = Path('/data')
-  info_dir = data_dir/'info'
+    data_dir = Path('/data')
+    info_dir = data_dir/'info'
 else:
-  data_dir = (script_dir/'..'/'data').resolve()
-  info_dir = script_dir/'data'/'info'
+    data_dir = (script_dir/'..'/'data').resolve()
+    info_dir = script_dir/'data'/'info'
 
 config_dir = script_dir/'config'
 raw_data_dir = data_dir/'raw'
@@ -83,15 +94,19 @@ for ds_name, ds_config in config.items():
             events = data['davis']['left']['events']
             image_ts = data['davis']['left']['image_raw_ts']
             images = data['davis']['left']['image_raw']
-            img2event_map = np.array(data['davis']['left']['image_raw_event_inds'], dtype=np.int)
+            img2event_map = np.array(data['davis']
+                                         ['left']
+                                         ['image_raw_event_inds'],
+                                     dtype=np.int)
 
             # mask of images to use
             mask = image_ts >= t0 + start_ts
-            if not stop_ts is None:
+            if stop_ts is not None:
                 mask = np.logical_and(mask, image_ts <= t0 + stop_ts)
 
             image_ts = image_ts[mask]
-            images = images[mask,:]
+            images = images[mask, :]
             img2event_map = img2event_map[mask]
 
-            write_samples(events, images, image_ts, img2event_map, seq_training_dir, t0)
+            write_samples(events, images, image_ts,
+                          img2event_map, seq_training_dir, t0)
