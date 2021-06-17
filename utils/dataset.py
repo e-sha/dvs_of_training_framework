@@ -71,8 +71,12 @@ class DatasetImpl:
                  path,  # path to the dataset
                  shape,  # shape of the images to load
                  augmentation=False,  # does apply augmentaion
-                 collapse_length=6,  # maximum number of images
-                                     # to combine in a single sample
+                 collapse_length=6,  # maximum index distance between images
+                                     # used for a single Optical Flow
+                                     # predictions
+                 max_seq_length=1, # maximum number of expected OF
+                                   # predictions per sample
+                 is_static_seq_length = True,
                  return_aug=False,  # does return augmentation parameters
                  is_raw=True,  # does return raw events or event images
                  is_align=True,  # shift timestamps to get a 0 start timestamp
@@ -84,6 +88,8 @@ class DatasetImpl:
         self.augmentation = augmentation
         self.shape = shape
         self.collapse_length = collapse_length
+        self.max_seq_length = max_seq_length
+        self.is_static_seq_length = is_static_seq_length
         self.return_aug = return_aug
         self.is_raw = is_raw
         self.is_align = is_align
@@ -91,13 +97,17 @@ class DatasetImpl:
         self.random_rotation = None  # RandomRotation(30, shape)
 
         self.event_crop_fun = EventCrop(box=None)
+        kwargs = dict(shape=shape, return_box=True, channel_first=True)
         if self.augmentation:
-            self.img_crop_fun = ImageRandomCrop(shape=shape, return_box=True)
+            self.img_crop_fun = ImageRandomCrop(**kwargs)
         else:
-            self.img_crop_fun = ImageCentralCrop(shape=shape, return_box=True)
+            self.img_crop_fun = ImageCentralCrop(**kwargs)
 
     def __len__(self):
-        return len(self.files)
+        n = len(self.files)
+        if self.is_static_seq_length:
+            return n - self.max_seq_length + 1
+        return n
 
     def _get_k_elems(self, idx, k):
         events = []
@@ -118,13 +128,19 @@ class DatasetImpl:
 
         return events, start, stop, image1, image2
 
-    def _rotate(self, image1, image2, events, angle):
+    def _rotate(self, images, events, angle):
         # we have to know image shape to initialize random_rotation
         if self.random_rotation is None:
-            self.random_rotation = RandomRotation(self.angle, image1.shape[:2])
-        return self.random_rotation(image1, image2, events, angle)
+            self.random_rotation = RandomRotation(self.angle, images.shape[-2:])
+        return self.random_rotation(images, events, angle)
 
-    def __getitem__(self, idx, k=None, is_flip=None, angle=None, box=None):
+    def __getitem__(self,
+                    idx,
+                    k=None,
+                    is_flip=None,
+                    angle=None,
+                    box=None,
+                    seq_length=None):
         ''' returns events and corresponding images
         Args:
             idx (int): index
@@ -139,25 +155,62 @@ class DatasetImpl:
                                         after the sliding window
         '''
 
+        if seq_length is None:
+            if self.augmentation:
+                if self.is_static_seq_length:
+                    seq_length = self.max_seq_length
+                else:
+                    choices = min(len(self.files) - idx, self.max_seq_length)
+                    seq_length = np.random.randint(choices) + 1
+            else:
+                seq_length = self.max_seq_length
+
         # choose collapse length from 1 to self.collapse_length
         if k is None:
             if self.augmentation:
                 # collapse events for several images
-                max_k = len(self) - idx
-                choises = min(self.collapse_length, max_k)
-                k = np.random.randint(choises) + 1
+                max_k = (len(self.files) - idx) // seq_length
+                choices = min(self.collapse_length, max_k)
+                k = np.random.randint(choices) + 1
             else:
                 k = 1
 
+        assert idx + k * seq_length <= len(self.files)
+
         # read data
-        events, start, stop, image1, image2 = self._get_k_elems(idx, k)
+        events = None
+        image_ts = None
+        images = None
+        for i in range(seq_length):
+            _events, _start, _stop, _image1, _image2 = self._get_k_elems(idx + i * k, k)
+            assert _image1.ndim == _image2.ndim
+            assert all([x == y for x, y in zip(_image1.shape, _image2.shape)])
+            if _image1.ndim == 2:
+                _image1 = _image1[None]
+                _image2 = _image2[None]
+            else:
+                assert _image1.ndim == 3
+                _image1 = np.rollaxis(_image1, 2, 0)
+                _image2 = np.rollaxis(_image2, 2, 0)
+            _events = add_sample_index(_events, i)
+            if events is None:
+                events = [_events]
+                image_ts = [_start, _stop]
+                images = [_image1, _image2]
+            else:
+                events.append(_events)
+                image_ts.append(_stop)
+                images.append(_image2)
+        events = np.vstack(events)
+        image_ts = np.array(image_ts)
+        images = np.concatenate(images, axis=0)
 
         # align timestamps
         # It fixes a problem with to huge timestamps stored as fp32
         if self.is_align:  # subtract start timestamp
-            events[:, 2] -= start[0]
-            stop[0] -= start[0]
-            start[0] = 0
+            start_ts = image_ts[0]
+            events[:, 2] -= start_ts
+            image_ts -= start_ts
 
         # convert events to float32
         events = events.astype(np.float32)
@@ -166,36 +219,31 @@ class DatasetImpl:
             is_flip = np.random.rand() < 0.5 if is_flip is None else is_flip
             if is_flip:
                 # horizontal flip
-                image1 = image1[:, ::-1]
-                image2 = image2[:, ::-1]
-                events[:, 0] = image1.shape[1] - events[:, 0] - 1
+                images = images[..., ::-1]
+                events[:, 0] = images.shape[-1] - events[:, 0] - 1
             # rotate image
-            image1, image2, events, angle = self._rotate(image1,
-                                                         image2,
-                                                         events,
-                                                         angle)
+            images, events, angle = self._rotate(images,
+                                                 events,
+                                                 angle)
         else:
             is_flip = False
 
         # crop. The input box is None if it isn't specified
-        image1, box = self.img_crop_fun(image1, box=box)
-        image2, _ = self.img_crop_fun(image2, box=box)
+        images, box = self.img_crop_fun(images, box=box)
         events = self.event_crop_fun(events, box=box)
 
         # convert images to float32 with channels as a first dimension
-        image1, image2 = map(lambda x: x[None].astype(np.float32),
-                             (image1, image2))
-        assert all(events[:, 2] >= start[0])
-        assert all(events[:, 2] <= stop[0])
+        images = images.astype(np.float32)
+        assert all(events[:, 2] >= image_ts[0])
+        assert all(events[:, 2] <= image_ts[-1])
 
         if self.is_raw:
             samples = events
         else:
-            events = add_sample_index(events, 0)
             with torch.no_grad():
                 samples = compute_event_image(events,
-                                              np.array(start),
-                                              np.array(stop),
+                                              image_ts[:-1],
+                                              image_ts[1:],
                                               self.shape,
                                               device='cpu',
                                               dtype=torch.float32)[0]
@@ -204,17 +252,13 @@ class DatasetImpl:
             box = np.array(box, dtype=int)
             is_flip = np.array([is_flip], dtype=bool)
             return (samples,
-                    start,
-                    stop,
-                    image1,
-                    image2,
-                    (idx, k, box, angle, is_flip))
+                    image_ts,
+                    images,
+                    (idx, seq_length, k, box, angle, is_flip))
         else:
             return (samples,
-                    start,
-                    stop,
-                    image1,
-                    image2)  # add channel dimension
+                    image_ts,
+                    images)  # add channel dimension
 
 
 def add_sample_index(events, i):

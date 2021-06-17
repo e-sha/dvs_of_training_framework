@@ -115,7 +115,7 @@ def get_dataloader(params):
     kwargs = {'path': params.path,
               'shape': params.shape,
               'augmentation': params.augmentation,
-              'collapse_length': params.augmentation,
+              'collapse_length': params.collapse_length,
               'is_raw': params.is_raw}
     loader_kwargs = {}
     if params.infinite:

@@ -1,5 +1,14 @@
+import abc
+from functools import reduce
 import numpy as np
+import operator
+
+
 from .transformation import map as event_map
+
+
+def prod(iterable):
+    return reduce(operator.mul, iterable, 1)
 
 
 def central_shift(in_shape, out_shape):
@@ -22,68 +31,91 @@ class EventCrop:
     def __call__(self, events, box=None):
         if box is None:
             box = self.box
-        x, y, t, p = events.T
+        #x, y, t, p = events.T
+        x = events[:, 0]
+        y = events[:, 1]
         mask = np.logical_and(
                 np.logical_and(x >= box[1], x < box[1] + box[3]),
                 np.logical_and(y >= box[0], y < box[0] + box[2])
                 )
-        return np.array([x[mask] - box[1],
-                         y[mask] - box[0],
-                         t[mask],
-                         p[mask]]).T
+        events = events[mask]
+        events[:, [1, 0]] -= np.array(box[:2]).reshape(1, -1)
+        return events
 
 
-class ImageCrop:
-    ''' Crop images
-    '''
-    def __init__(self, box):
-        self.box = box
-
-    def __call__(self, flow):
-        return flow[self.box[0]:self.box[0] + self.box[2],
-                    self.box[1]:self.box[1] + self.box[3]]
-
-
-class ImageCentralCrop:
-    ''' Crop images
-    '''
-    def __init__(self, shape, return_box):
-        self.shape = shape
+class IImageCrop(abc.ABC):
+    def __init__(self, return_box, channel_first):
         self.return_box = return_box
+        self.channel_first = channel_first
+
+    @abc.abstractmethod
+    def _choose_box(self, img):
+        raise NotImplementedError
 
     def __call__(self, img, box=None):
+        channel_first = self.channel_first
+        if img.ndim == 2:
+            channel_first = True
+        elif not self.channel_first:
+            # move channel axis from -1 to -3 position
+            #      -3,-2,-1          -3,-2,-1
+            # (..., H, W, C) -> (..., C, H, W)
+            img = np.rollaxis(img, img.ndim - 1, img.ndim - 3)
         if box is None:
-            start = list(central_shift(img.shape[:2], self.shape))
-            box = start + list(self.shape)
-        res = img[box[0]:box[0] + box[2],
+            box = self._choose_box(img)
+        res = img[...,
+                  box[0]:box[0] + box[2],
                   box[1]:box[1] + box[3]]
+        if img.ndim != 2 and not self.channel_first:
+            # move channel axis from -3 to -1 position
+            #      -3,-2,-1          -3,-2,-1
+            # (..., C, H, W) -> (..., H, W, C)
+            img = np.rollaxis(img, img.ndim - 3, img.ndim)
         if self.return_box:
             return res, box
         return res
 
 
-class ImageRandomCrop:
+class ImageCrop(IImageCrop):
     ''' Crop images
     '''
-    def __init__(self, shape, return_box):
+    def __init__(self, box, return_box, channel_first):
+        super().__init__(return_box, channel_first)
+        self.box = box
+
+    def _choose_box(self, _):
+        return self.box
+
+
+class ImageCentralCrop(IImageCrop):
+    ''' Crop images
+    '''
+    def __init__(self, shape, return_box, channel_first):
+        super().__init__(return_box, channel_first)
         self.shape = shape
-        self.return_box = return_box
+
+    def _choose_box(self, img):
+        # we assume that image is in [..., C, H, W] format
+        start = list(central_shift(img.shape[-2:], self.shape))
+        return start + list(self.shape)
+
+
+class ImageRandomCrop(IImageCrop):
+    ''' Crop images
+    '''
+    def __init__(self, shape, return_box, channel_first):
+        super().__init__(return_box, channel_first)
+        self.shape = shape
 
     def __randint(self, x):
         if x == 0:
             return 0
         return np.random.randint(x)
 
-    def __call__(self, img, box=None):
-        if box is None:
-            start = list(map(lambda x, y: self.__randint(x - y),
-                             img.shape[:2], self.shape))
-            box = start + list(self.shape)
-        res = img[box[0]:box[0] + box[2],
-                  box[1]:box[1] + box[3]]
-        if self.return_box:
-            return res, box
-        return res
+    def _choose_box(self, img):
+        start = list(map(lambda x, y: self.__randint(x - y),
+            img.shape[-2:], self.shape))
+        return start + list(self.shape)
 
 
 def get_count_image(events, imsize):
@@ -141,7 +173,12 @@ def RandomRotation(interval, shape):
     def grad2rad(x):
         return x * np.pi / 180
 
-    def rotation(image1, image2, events, angle=None):
+    def extend_indices(idx, num_samples, shape):
+        channel_size = prod(shape)
+        sample_shift = np.arange(num_samples).reshape(-1, 1) * channel_size
+        return (sample_shift + idx.reshape(1, -1)).reshape(-1)
+
+    def rotation(images, events, angle=None):
         if angle is None:
             angle = (np.random.rand() * (interval[1] - interval[0]) +
                      interval[0])
@@ -151,8 +188,8 @@ def RandomRotation(interval, shape):
             [np.sin(rad_angle), np.cos(rad_angle)]
             ])
         idx1 = mat.dot(multi_idx)
-        x1 = np.rint(idx1[0] + shape[1]/2)
-        y1 = np.rint(idx1[1] + shape[0]/2)
+        x1 = np.rint(idx1[0] + shape[1] / 2)
+        y1 = np.rint(idx1[1] + shape[0] / 2)
         x1, y1 = map(lambda x: x.astype(int), (x1, y1))
 
         mask = np.logical_and(
@@ -163,20 +200,22 @@ def RandomRotation(interval, shape):
         cur_idx = idx[mask]
         cur_ridx = np.ravel_multi_index([y1[mask], x1[mask]], shape)
 
+        num_channels = images.shape[0]
+        multi_cur_idx = extend_indices(cur_idx, num_channels, shape)
+        multi_cur_ridx = extend_indices(cur_ridx, num_channels, shape)
+        images
+
         # rotate image image[y, x] = image[y1, x1]
-        rimage1 = np.zeros_like(image1).ravel()
-        rimage1[cur_idx] = image1.ravel()[cur_ridx]
-        rimage2 = np.zeros_like(image2).ravel()
-        rimage2[cur_idx] = image2.ravel()[cur_ridx]
-        rimage1, rimage2 = map(lambda x: x.reshape(image1.shape),
-                               (rimage1, rimage2))
+        rimages = np.zeros_like(images).ravel()
+        rimages[multi_cur_idx] = images.ravel()[multi_cur_ridx]
+        rimages = rimages.reshape(images.shape)
 
         # rotate events
         revents = event_map(events.astype(np.float32).copy(),
-                            image1.shape,
+                            images.shape[1:],
                             cur_ridx.astype(np.uint64),
                             cur_idx.astype(np.uint64))
 
-        return rimage1, rimage2, revents, angle
+        return rimages, revents, angle
 
     return rotation
