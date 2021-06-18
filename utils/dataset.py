@@ -227,6 +227,7 @@ class DatasetImpl:
                                                  angle)
         else:
             is_flip = False
+            angle = 0
 
         # crop. The input box is None if it isn't specified
         images, box = self.img_crop_fun(images, box=box)
@@ -275,7 +276,7 @@ def collate_wrapper(batch):
     events = np.vstack([add_sample_index(sample[0], i)
                         for i, sample in enumerate(batch)])
     timestamps = np.vstack([add_sample_index(sample[1], i)
-                            for i, sample in enumerate])
+                            for i, sample in enumerate(batch)])
     images = np.vstack([x[2] for x in batch])
     add_info = tuple()
     if len(batch) > 0 and len(batch[0]) > 3:
@@ -292,7 +293,5 @@ def collate_wrapper(batch):
         add_info = (tuple(map(to_tensor, (idx, k, box, angle, is_flip))), )
 
     return tuple(map(to_tensor, (events,
-                                 start,
-                                 stop,
-                                 image1,
-                                 image2))) + add_info
+                                 timestamps,
+                                 images))) + add_info

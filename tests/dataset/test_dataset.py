@@ -250,7 +250,8 @@ def test_data_augmentation_sequence():
             h5py.File(data_path/'000002.hdf5', 'r') as f2:
         gt_events1 = np.array(f1['events'])
         gt_events2 = np.array(f2['events'])
-        gt_events = map(lambda x, y: np.hstack((x, np.full_like(x[:, [0]], y))),
+        gt_events = map(lambda x, y: np.hstack((x,
+                                                np.full_like(x[:, [0]], y))),
                         (gt_events1, gt_events2), (0, 1))
         gt_events = np.vstack(list(gt_events))
         start = float(f1['start'][()])
@@ -276,9 +277,9 @@ def test_data_augmentation_sequence():
 def test_dataloader():
     data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
-                          shape=[256, 256],
-                          augmentation=True,
-                          collapse_length=2,
+                          shape=[260, 346],
+                          augmentation=False,
+                          collapse_length=1,
                           is_raw=True,
                           return_aug=True)
     data_loader = torch.utils.data.DataLoader(dataset,
@@ -286,3 +287,35 @@ def test_dataloader():
                                               batch_size=2,
                                               pin_memory=True,
                                               shuffle=False)
+    events, timestamps, images, augmentation_params = next(iter(data_loader))
+
+    with h5py.File(data_path/'000000.hdf5', 'r') as f0, \
+            h5py.File(data_path/'000001.hdf5', 'r') as f1:
+        gt_events0 = np.array(f0['events'])
+        start0 = float(f0['start'][()])
+        gt_events0[:, 2] -= start0
+        gt_events1 = np.array(f1['events'])
+        start1 = float(f1['start'][()])
+        gt_events1[:, 2] -= start1
+        gt_events = map(lambda x, y: np.hstack((x,
+                                                np.full_like(x[:, [0]], 0),
+                                                np.full_like(x[:, [0]], y))),
+                        (gt_events0, gt_events1), (0, 1))
+        gt_events = torch.tensor(np.vstack(list(gt_events)),
+                                 dtype=torch.float32)
+        stop0 = float(f0['stop'][()]) - start0
+        stop1 = float(f1['stop'][()]) - start1
+        gt_timestamps = torch.tensor([[0, 0],
+                                      [stop0, 0],
+                                      [0, 1],
+                                      [stop1, 1]], dtype=torch.float32)
+        image00 = torch.tensor(f0['image1'], dtype=torch.float32)[None]
+        image01 = torch.tensor(f0['image2'], dtype=torch.float32)[None]
+        image10 = torch.tensor(f1['image1'], dtype=torch.float32)[None]
+        image11 = torch.tensor(f1['image2'], dtype=torch.float32)[None]
+        gt_images = torch.cat([image00, image01, image10, image11], dim=0) \
+                         .to(torch.float32)
+
+    assert torch.equal(events, gt_events)
+    assert torch.equal(timestamps, gt_timestamps)
+    assert (images == gt_images).all()
