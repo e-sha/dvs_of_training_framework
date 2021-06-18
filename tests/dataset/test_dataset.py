@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 from pathlib import Path
 import sys
+import torch
 
 
 test_path = Path(__file__).parent.resolve()
@@ -11,7 +12,7 @@ sys.path.append(str(test_path.parent))
 
 
 try:
-    from utils.dataset import Dataset, DatasetImpl
+    from utils.dataset import Dataset, DatasetImpl, collate_wrapper
 except ImportError:
     raise
 
@@ -271,3 +272,17 @@ def test_data_augmentation_sequence():
     assert np.max(np.abs(images - gt_images).reshape(-1)) == 0
     assert (images == gt_images).all()
 
+
+def test_dataloader():
+    data_path = test_path/'data/seq'
+    dataset = DatasetImpl(path=data_path,
+                          shape=[256, 256],
+                          augmentation=True,
+                          collapse_length=2,
+                          is_raw=True,
+                          return_aug=True)
+    data_loader = torch.utils.data.DataLoader(dataset,
+                                              collate_fn=collate_wrapper,
+                                              batch_size=2,
+                                              pin_memory=True,
+                                              shuffle=False)

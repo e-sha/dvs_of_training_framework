@@ -262,33 +262,33 @@ class DatasetImpl:
 
 
 def add_sample_index(events, i):
-    return np.hstack((events, np.full(events[:, [0]].shape,
-                                      i,
-                                      dtype=np.float32)))
+    return np.hstack((events, np.full_like(events[:, [0]], i)))
 
 
 def collate_wrapper(batch):
     def to_tensor(x):
         return torch.FloatTensor(x)
 
-    #    0        1     2     3        4
-    # (events, start, stop, image1, image2)
+    #     0          1        2            3
+    # (events, timestamps, images, augmentation_params)
     # add sample index to events
     events = np.vstack([add_sample_index(sample[0], i)
                         for i, sample in enumerate(batch)])
-    start = np.hstack([sample[1] for sample in batch])
-    stop = np.hstack([sample[2] for sample in batch])
-    image1 = np.vstack([sample[3][None] for sample in batch])
-    image2 = np.vstack([sample[4][None] for sample in batch])
+    timestamps = np.vstack([add_sample_index(sample[1], i)
+                            for i, sample in enumerate])
+    images = np.vstack([x[2] for x in batch])
     add_info = tuple()
-    if len(batch) > 0 and len(batch[0]) > 5:
-        #   0        1     2      3       4     5[0] 5[1] 5[2]  5[3]    5[4]
-        # events, start, stop, image1, image2, (idx,  k,  box, angle, is_flip)
-        idx = np.array([sample[5][0] for sample in batch])
-        k = np.array([sample[5][1] for sample in batch])
-        box = np.vstack([sample[5][2][None] for sample in batch])
-        angle = np.array([sample[5][3] for sample in batch])
-        is_flip = np.array([sample[5][4] for sample in batch])
+    if len(batch) > 0 and len(batch[0]) > 3:
+        # process augmentation parameters
+        augmentation_params = [x[3] for x in batch]
+        #   0        1       2    3     4       5
+        # (idx, seq_length,  k,  box, angle, is_flip)
+        idx = np.array([x[0] for x in augmentation_params])
+        seq_length = np.array([x[1] for x in augmentation_params])
+        k = np.array([x[2] for x in augmentation_params])
+        box = np.vstack([x[3].reshape(1, -1) for x in augmentation_params])
+        angle = np.array([x[4] for x in augmentation_params])
+        is_flip = np.array([x[5] for x in augmentation_params])
         add_info = (tuple(map(to_tensor, (idx, k, box, angle, is_flip))), )
 
     return tuple(map(to_tensor, (events,
