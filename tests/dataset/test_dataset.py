@@ -222,3 +222,52 @@ def test_data_augmentation_crop():
     for i in range(images.shape[0]):
         assert (images[i].ravel()[cropped_indices] ==
                 gt_images[i].ravel()[original_indices]).all()
+
+
+def test_data_augmentation_sequence():
+    data_path = test_path/'data/seq'
+    dataset = DatasetImpl(path=data_path,
+                          shape=[256, 256],
+                          augmentation=True,
+                          collapse_length=2,
+                          is_raw=True,
+                          return_aug=True)
+    gt_idx, gt_k, gt_flip, gt_angle = 1, 1, False, 0
+    gt_box, gt_seq_length = np.array([0, 0, 260, 346]), 2
+    events, timestamps, images, aug_params = dataset.__getitem__(
+            idx=gt_idx, k=gt_k, is_flip=gt_flip,
+            angle=gt_angle, box=gt_box,
+            seq_length=gt_seq_length)
+    assert gt_idx == aug_params[0]
+    assert gt_seq_length == aug_params[1]
+    assert gt_k == aug_params[2]
+    assert (gt_box == aug_params[3]).all()
+    assert gt_angle == aug_params[4]
+    assert gt_flip == aug_params[5]
+
+    with h5py.File(data_path/'000001.hdf5', 'r') as f1, \
+            h5py.File(data_path/'000002.hdf5', 'r') as f2:
+        gt_events1 = np.array(f1['events'])
+        gt_events2 = np.array(f2['events'])
+        gt_events = map(lambda x, y: np.hstack((x, np.full_like(x[:, [0]], y))),
+                        (gt_events1, gt_events2), (0, 1))
+        gt_events = np.vstack(list(gt_events))
+        start = float(f1['start'][()])
+        intermediate = float(f1['stop'][()])
+        stop = float(f2['stop'][()])
+        gt_events[:, 2] -= start
+        gt_timestamps = np.array([[start], [intermediate], [stop]]) - start
+        image1 = np.array(f1['image1'])[None]
+        image2 = np.array(f1['image2'])[None]
+        image3 = np.array(f2['image2'])[None]
+        assert float(f1['stop'][()]) == float(f2['start'][()])
+        assert (np.array(f1['image2']) == np.array(f2['image1'])).all()
+        gt_images = np.concatenate([image1, image2, image3], axis=0) \
+                      .astype(np.float32)
+    assert (events == gt_events).all()
+    assert (timestamps == gt_timestamps).all()
+    assert (images[0] == gt_images[0]).all()
+    assert (images[1] == gt_images[1]).all()
+    assert np.max(np.abs(images - gt_images).reshape(-1)) == 0
+    assert (images == gt_images).all()
+
