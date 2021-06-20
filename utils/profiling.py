@@ -1,6 +1,5 @@
 from pathlib import Path
 import torch
-import pyprof
 
 from .common import get_torch_version
 
@@ -17,6 +16,7 @@ class Profiler():
             enabled = True
             nvtx = False
         elif profiler_type == 'NVTX':
+            import pyprof
             enabled = True
             nvtx = True
         else:
@@ -33,7 +33,7 @@ class Profiler():
             self._prof_kwargs.update(dict(with_stack=True))
             self._group_kwargs.update(dict(group_by_stack_n=15))
         global is_pyprof_initialized
-        if not is_pyprof_initialized and self._enabled:
+        if not is_pyprof_initialized and self._enabled and self._nvtx:
             pyprof.init()
             is_pyprof_initialized = True
 
