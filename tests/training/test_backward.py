@@ -49,7 +49,5 @@ def test_forward():
                                  intermediate=True)
     loss, terms = combined_loss(evaluator,
                                 prediction,
-                                image1,
-                                image2,
-                                features,
-                                weights=weights)
+                                images,
+                                features)

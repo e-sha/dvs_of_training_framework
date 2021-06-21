@@ -113,7 +113,7 @@ class Loss:
                                device=flow_arth.device)
         return loss
 
-    def __call__(self, prev_images, next_images, flow, flow_arth):
+    def __call__(self, images, flow, flow_arth):
         N, C, H, W = prev_images.size()
         assert self.N >= N, 'This object should be used for batch of ' \
                             f'at most {self.N} samples, but {N} samples ' \
@@ -184,12 +184,10 @@ class Losses:
         self.losses = [Loss(shape, batch_size, device, timers)
                        for shape in shapes]
 
-    def __call__(self, flows, prev_images, next_images, flow_arths):
+    def __call__(self, flows, images, flow_arths):
         result = []
         for loss, flow, flow_arth in zip(self.losses, flows, flow_arths):
             cur_shape = flow.size()[-2:]
-            im1, im2 = map(interpolate,
-                           (prev_images, next_images),
-                           [cur_shape]*2)
-            result.append(loss(im1, im2, flow, flow_arth))
+            images = interpolate(images, cur_shape)
+            result.append(loss(images, flow, flow_arth))
         return tuple(zip(*result))

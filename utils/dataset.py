@@ -234,6 +234,7 @@ class DatasetImpl:
         events = self.event_crop_fun(events, box=box)
 
         # convert images to float32 with channels as a first dimension
+        images = np.expand_dims(images, axis=1)
         images = images.astype(np.float32)
         assert all(events[:, 2] >= image_ts[0])
         assert all(events[:, 2] <= image_ts[-1])
@@ -278,6 +279,7 @@ def collate_wrapper(batch):
     timestamps = np.vstack([add_sample_index(sample[1], i)
                             for i, sample in enumerate(batch)])
     images = np.vstack([x[2] for x in batch])
+    images = np.expand_dims(images, axis=1)
     add_info = tuple()
     if len(batch) > 0 and len(batch[0]) > 3:
         # process augmentation parameters

@@ -30,7 +30,7 @@ def test_read():
     assert (events[:, 4] != 0).sum() == 0, 'Sample is a sequence ' \
                                            'of 2 images'
     assert images.ndim == 3
-    assert images.shape == (2, 256, 256)
+    assert images.shape == (2, 1, 256, 256)
     assert timestamps.shape == (2, 1)
     assert timestamps[0] < timestamps[1]
 
@@ -69,6 +69,7 @@ def test_data_augmentation_collapse():
         assert float(f1['stop'][()]) == float(f2['start'][()])
         assert (np.array(f1['image2']) == np.array(f2['image1'])).all()
         gt_images = np.concatenate([image1, image2], axis=0).astype(np.float32)
+        gt_images = np.expand_dims(gt_images, axis=1)
     assert (events == gt_events).all()
     assert (timestamps == gt_timestamps).all()
     assert (images[0] == gt_images[0]).all()

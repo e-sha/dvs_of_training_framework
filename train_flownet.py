@@ -26,11 +26,13 @@ script_dir = Path(__file__).resolve().parent
 
 
 def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
-    events = torch.zeros((0, 5), dtype=torch.float32, device=device)
+    events = torch.zeros((0, 6), dtype=torch.float32, device=device)
     with torch.no_grad():
         out = model(events,
-                    torch.tensor([0], dtype=torch.float32, device=device),
-                    torch.tensor([0.04], dtype=torch.float32, device=device),
+                    torch.tensor([[0, 0],
+                                  [0.4, 0]],
+                                 dtype=torch.float32,
+                                 device=device),
                     shape, raw=True)
     out_shapes = tuple(tuple(flow.shape[2:]) for flow in out)
     return Losses(out_shapes, batch_size, device, timers=timers)
