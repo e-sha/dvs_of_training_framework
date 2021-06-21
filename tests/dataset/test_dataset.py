@@ -30,7 +30,7 @@ def test_read():
     assert (events[:, 4] != 0).sum() == 0, 'Sample is a sequence ' \
                                            'of 2 images'
     assert images.ndim == 3
-    assert images.shape == (2, 1, 256, 256)
+    assert images.shape == (2, 256, 256)
     assert timestamps.shape == (2, 1)
     assert timestamps[0] < timestamps[1]
 
@@ -69,12 +69,8 @@ def test_data_augmentation_collapse():
         assert float(f1['stop'][()]) == float(f2['start'][()])
         assert (np.array(f1['image2']) == np.array(f2['image1'])).all()
         gt_images = np.concatenate([image1, image2], axis=0).astype(np.float32)
-        gt_images = np.expand_dims(gt_images, axis=1)
     assert (events == gt_events).all()
     assert (timestamps == gt_timestamps).all()
-    assert (images[0] == gt_images[0]).all()
-    assert (images[1] == gt_images[1]).all()
-    assert np.max(np.abs(images - gt_images).reshape(-1)) == 0
     assert (images == gt_images).all()
 
 
@@ -310,10 +306,10 @@ def test_dataloader():
                                       [stop0, 0],
                                       [0, 1],
                                       [stop1, 1]], dtype=torch.float32)
-        image00 = torch.tensor(f0['image1'], dtype=torch.float32)[None]
-        image01 = torch.tensor(f0['image2'], dtype=torch.float32)[None]
-        image10 = torch.tensor(f1['image1'], dtype=torch.float32)[None]
-        image11 = torch.tensor(f1['image2'], dtype=torch.float32)[None]
+        image00 = torch.tensor(f0['image1'], dtype=torch.float32)[None, None]
+        image01 = torch.tensor(f0['image2'], dtype=torch.float32)[None, None]
+        image10 = torch.tensor(f1['image1'], dtype=torch.float32)[None, None]
+        image11 = torch.tensor(f1['image2'], dtype=torch.float32)[None, None]
         gt_images = torch.cat([image00, image01, image10, image11], dim=0) \
                          .to(torch.float32)
 

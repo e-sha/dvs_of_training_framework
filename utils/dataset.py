@@ -234,7 +234,6 @@ class DatasetImpl:
         events = self.event_crop_fun(events, box=box)
 
         # convert images to float32 with channels as a first dimension
-        images = np.expand_dims(images, axis=1)
         images = images.astype(np.float32)
         assert all(events[:, 2] >= image_ts[0])
         assert all(events[:, 2] <= image_ts[-1])
