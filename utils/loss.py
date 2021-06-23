@@ -113,8 +113,10 @@ class Loss:
                                device=flow_arth.device)
         return loss
 
-    def __call__(self, images, flow, flow_arth):
-        N, C, H, W = prev_images.size()
+    def __call__(self, images, timestamps, flow, flow_arth):
+        num_images, C, H, W = images.size()
+        batch_size = int(timestamps[-1, 1].item()) + 1
+        N = num_images - batch_size
         assert self.N >= N, 'This object should be used for batch of ' \
                             f'at most {self.N} samples, but {N} samples ' \
                             'are given'
@@ -125,16 +127,6 @@ class Loss:
                             f'height {self.W}, but image of height {W} ' \
                             'are given'
 
-        NN, NC, NH, NW = next_images.size()
-        assert NN == N, 'Number of previous and next images should ' \
-                        f'be the same {N} vs {NN}'
-        assert NC == C, 'Number of channels of previous and next images ' \
-                        f'should be the same {C} vs {NC}'
-        assert NH == H, 'Height of previous and next images should ' \
-                        f'be the same {H} vs {NH}'
-        assert NW == W, 'Width of images and flows should ' \
-                        f'be the same {W} vs {NW}'
-
         FN, FC, FH, FW = flow.size()
         assert FN == N, 'Number of images and flows should ' \
                         f'be the same {N} vs {FN}'
@@ -144,7 +136,7 @@ class Loss:
         assert FW == W, 'Width of images and flows should ' \
                         f'be the same {W} vs {FW}'
 
-        AN, AC, AH, AW = flow.size()
+        AN, AC, AH, AW = flow_arth.size()
         assert AN == N, 'Number of images and flow\'s hyperbolic ' \
                         f'arctangenses should be the same {N} vs {AN}'
         assert AC == 2, 'Flow\'s hyperbolic arctangenses should ' \
@@ -165,8 +157,16 @@ class Loss:
         self.grid_holder -= 1
         self.timers('grid_construction').stop()
         self.timers('photometric_loss').start()
-        photometric = self.photometric_loss(prev_images,
-                                            next_images,
+
+        prev_image_indices = torch.full_like(timestamps[:, 1],
+                                             False, dtype=torch.bool)
+        next_image_indices = torch.full_like(timestamps[:, 1],
+                                             False, dtype=torch.bool)
+        prev_image_indices[:-1] = next_image_indices[1:] = \
+                timestamps[:-1, 1] == timestamps[1:, 1]
+
+        photometric = self.photometric_loss(images[prev_image_indices],
+                                            images[next_image_indices],
                                             self.grid_holder)
         self.timers('photometric_loss').stop()
         self.timers('smoothness_loss').start()
@@ -184,10 +184,10 @@ class Losses:
         self.losses = [Loss(shape, batch_size, device, timers)
                        for shape in shapes]
 
-    def __call__(self, flows, images, flow_arths):
+    def __call__(self, flows, images, timestamps, flow_arths):
         result = []
         for loss, flow, flow_arth in zip(self.losses, flows, flow_arths):
             cur_shape = flow.size()[-2:]
             images = interpolate(images, cur_shape)
-            result.append(loss(images, flow, flow_arth))
+            result.append(loss(images, timestamps, flow, flow_arth))
         return tuple(zip(*result))

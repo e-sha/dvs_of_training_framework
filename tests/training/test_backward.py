@@ -50,4 +50,5 @@ def test_forward():
     loss, terms = combined_loss(evaluator,
                                 prediction,
                                 images,
+                                timestamps,
                                 features)
