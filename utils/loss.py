@@ -22,7 +22,7 @@ def charbonier_loss(delta,
                     denominator: Optional[torch.Tensor] = None,
                     device: Optional[torch.device] = torch.device('cpu')):
     if delta.numel() == 0:
-        return torch.zeros([1], dtype=torch.float32, device=device)
+        return torch.tensor(0, dtype=torch.float32, device=device)
     delta = (delta.pow(2) + epsilon*epsilon).pow(alpha)
     if denominator is None:
         return delta.mean()
