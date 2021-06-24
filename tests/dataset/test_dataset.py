@@ -1,20 +1,10 @@
 import h5py
 import numpy as np
-from pathlib import Path
-import sys
+from tests.utils import test_path
 import torch
 
 
-test_path = Path(__file__).parent.resolve()
-while test_path.name != 'tests':
-    test_path = test_path.parent
-sys.path.append(str(test_path.parent))
-
-
-try:
-    from utils.dataset import Dataset, DatasetImpl, collate_wrapper
-except ImportError:
-    raise
+from utils.dataset import Dataset, DatasetImpl, collate_wrapper
 
 
 def test_read():

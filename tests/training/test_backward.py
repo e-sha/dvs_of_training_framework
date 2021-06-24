@@ -1,23 +1,11 @@
-import h5py
-import numpy as np
-from pathlib import Path
-import sys
+from tests.utils import test_path
 import torch
 from types import SimpleNamespace
 
 
-test_path = Path(__file__).parent.resolve()
-while test_path.name != 'tests':
-    test_path = test_path.parent
-sys.path.append(str(test_path.parent))
-
-
-try:
-    from train_flownet import init_model, init_losses
-    from utils.dataset import Dataset, DatasetImpl, collate_wrapper
-    from utils.training import combined_loss
-except ImportError:
-    raise
+from train_flownet import init_model, init_losses
+from utils.dataset import DatasetImpl, collate_wrapper
+from utils.training import combined_loss
 
 
 def test_forward():
@@ -40,7 +28,7 @@ def test_forward():
     model = init_model(
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                             mish=False, sp=None),
-                            device='cpu')
+            device='cpu')
     evaluator = init_losses(shape, batch_size, model, device='cpu')
     prediction, features = model(events,
                                  timestamps,
