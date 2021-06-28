@@ -1,6 +1,6 @@
 import h5py
 import numpy as np
-from tests.utils import test_path
+from tests.utils import data_path
 import torch
 
 
@@ -8,7 +8,7 @@ from utils.dataset import Dataset, DatasetImpl, collate_wrapper
 
 
 def test_read():
-    dataset = Dataset(path=test_path/'data/seq',
+    dataset = Dataset(path=data_path,
                       shape=[256, 256],
                       augmentation=True,
                       collapse_length=2,
@@ -26,7 +26,6 @@ def test_read():
 
 
 def test_data_augmentation_collapse():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[256, 256],
                           augmentation=True,
@@ -65,7 +64,6 @@ def test_data_augmentation_collapse():
 
 
 def test_data_augmentation_flip():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[256, 256],
                           augmentation=True,
@@ -111,7 +109,6 @@ def test_data_augmentation_flip():
 
 
 def test_data_augmentation_angle():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[256, 256],
                           augmentation=True,
@@ -164,7 +161,6 @@ def test_data_augmentation_angle():
 
 
 def test_data_augmentation_crop():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[256, 256],
                           augmentation=True,
@@ -213,7 +209,6 @@ def test_data_augmentation_crop():
 
 
 def test_data_augmentation_sequence():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[256, 256],
                           augmentation=True,
@@ -262,7 +257,6 @@ def test_data_augmentation_sequence():
 
 
 def test_dataloader():
-    data_path = test_path/'data/seq'
     dataset = DatasetImpl(path=data_path,
                           shape=[260, 346],
                           augmentation=False,
