@@ -70,7 +70,7 @@ class IImageCrop(abc.ABC):
             # move channel axis from -3 to -1 position
             #      -3,-2,-1          -3,-2,-1
             # (..., C, H, W) -> (..., H, W, C)
-            img = np.rollaxis(img, img.ndim - 3, img.ndim)
+            res = np.rollaxis(res, img.ndim - 3, img.ndim)
         if self.return_box:
             return res, box
         return res
