@@ -20,8 +20,10 @@ def test_no_changes():
 
 
 def test_zero_flow():
-    x0, y0 = 230, 200
-    B, H, W = 1, 5, 6
+    #x0, y0 = 230, 200
+    #B, H, W = 1, 5, 6
+    x0, y0 = 0, 0
+    B, H, W = 1, 246, 340
     dtype = torch.float32
     events, start, stop, image1, image2 = read_test_elem(1, box=[y0, x0, H, W],
                                                          is_torch=True)
@@ -33,13 +35,16 @@ def test_zero_flow():
     evaluator = Loss((H, W), 1, 'cpu')
     loss = evaluator(images, timestamps, flow, flow_arth)
     assert len(loss) == 3
-    for i, (l, gt) in enumerate(zip(loss, [0.002, 0.878210, 0])):
+    #for i, (l, gt) in enumerate(zip(loss, [0.002, 0.878210, 0])):
+    for i, (l, gt) in enumerate(zip(loss, [0.002, 0.622660, 0])):
         assert (l - gt).abs() < 5e-6, f'[{i}] {l} vs {gt}'
 
 
 def test_pred_flow():
-    x0, y0 = 230, 200
-    B, H, W = 1, 5, 6
+    #x0, y0 = 230, 200
+    #B, H, W = 1, 5, 6
+    x0, y0 = 0, 0
+    B, H, W = 1, 246, 340
     dtype = torch.float32
     events, start, stop, image1, image2, flow = \
             read_test_elem(1, box=[y0, x0, H, W],
@@ -52,5 +57,5 @@ def test_pred_flow():
     evaluator = Loss((H, W), 1, 'cpu')
     loss = evaluator(images, timestamps, flow, flow_arth)
     assert len(loss) == 3
-    for i, (l, gt) in enumerate(zip(loss, [0.004497, 0.928744, 0.009104])):
+    for i, (l, gt) in enumerate(zip(loss, [0.002120, 0.652659, 0.007802])):
         assert (l - gt).abs() < 5e-6, f'[{i}] {l} vs {gt}'
