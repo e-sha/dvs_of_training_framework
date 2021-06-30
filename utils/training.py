@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from .timer import SynchronizedWallClockTimer
+from .timer import SynchronizedWallClockTimer, FakeTimer
 
 
 def interpolate(img, shape):
@@ -32,6 +32,32 @@ def make_hook_periodic(hook, checkpointing_interval):
 
 def predictions2tag(predictions):
     return (f'{x.shape[-2]}x{x.shape[-1]}' for x in predictions)
+
+
+def process_minibatch(model, events, timestamps, images, timers, device, is_raw,
+        evaluator, weights):
+    timers('batch2gpu').start()
+    events, timestamps, images = map(lambda x: x.to(device),
+            (events, timestamps, images))
+    timers('batch2gpu').stop()
+    shape = images.size()[-2:]
+    timers('forward').start()
+    prediction, features = model(events,
+                                 timestamps,
+                                 shape,
+                                 raw=is_raw,
+                                 intermediate=True)
+    tags = predictions2tag(prediction)
+    timers('forward').stop()
+    timers('loss').start()
+    loss, terms = combined_loss(evaluator,
+                                prediction,
+                                images,
+                                timestamps,
+                                features,
+                                weights=weights)
+    timers('loss').stop()
+    return loss, terms, tags
 
 
 def train(model,
@@ -76,37 +102,16 @@ def train(model,
     out_reg_sum = []
     optimizer.zero_grad()
     timers('batch_construction').start()
-    for global_step, (data, timestamps, images) in enumerate(
+    for global_step, (events, timestamps, images) in enumerate(
             loader, init_step * accumulation_steps):
         if global_step == num_steps * accumulation_steps:
             break
         timers('batch_construction').stop()
-        timers('batch2gpu').start()
-        num_batch_samples = timestamps[-1, -1] + 1
-        data, timestamps, images = map(lambda x: x.to(device), (data,
-                                                                timestamps,
-                                                                images))
-        timers('batch2gpu').stop()
-        shape = images.size()[-2:]
-        samples_passed += num_batch_samples
-        timers('forward').start()
-        prediction, features = model(data,
-                                     timestamps,
-                                     shape,
-                                     raw=is_raw,
-                                     intermediate=True)
-        tags = predictions2tag(prediction)
-        timers('forward').stop()
-        timers('loss').start()
-        loss, terms = combined_loss(evaluator,
-                                    prediction,
-                                    images,
-                                    timestamps,
-                                    features,
-                                    weights=weights)
-        smoothness, photometric, out_reg = terms
+        samples_passed += timestamps[-1, -1] + 1
+        loss, (smoothness, photometric, out_reg), tags = process_minibatch(
+                model, events, timestamps, images, timers, device, is_raw,
+                evaluator, weights)
         loss /= accumulation_steps
-        timers('loss').stop()
         timers('backprop').start()
         loss.backward()
         timers('backprop').stop()
@@ -210,24 +215,10 @@ def validate(model, device, loader, samples_passed,
     out_reg_sum = []
     loss_sum = 0
     with torch.no_grad():
-        for data, timestamps, images in loader:
-            data, timestamps, images = map(lambda x: x.to(device), (data,
-                                                                    timestamps,
-                                                                    images))
-            shape = images.size()[-2:]
-            prediction, features = model(data,
-                                         timestamps,
-                                         shape,
-                                         raw=is_raw,
-                                         intermediate=True)
-            tags = predictions2tag(prediction)
-            loss, terms = combined_loss(evaluator,
-                                        prediction,
-                                        images,
-                                        timestamps,
-                                        features,
-                                        weights=weights)
-            smoothness, photometric, out_reg = terms
+        for events, timestamps, images in loader:
+            loss, (smoothness, photometric, out_reg), tags = process_minibatch(
+                    model, events, timestamps, images, FakeTimer(), device,
+                    is_raw, evaluator, weights)
             photo_sum = add_loss(photo_sum, photometric)
             smooth_sum = add_loss(smooth_sum, smoothness)
             out_reg_sum = add_loss(out_reg_sum, out_reg)
