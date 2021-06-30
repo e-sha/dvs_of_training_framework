@@ -236,7 +236,8 @@ def main():
     args = parse_args(sys.argv[1:])
 
     device = torch.device(args.device)
-    torch.cuda.set_device(device)
+    if device.type == 'cuda':
+        torch.cuda.set_device(device)
     if args.timers:
         timers = SynchronizedWallClockTimer()
     else:

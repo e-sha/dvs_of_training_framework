@@ -76,25 +76,22 @@ def train(model,
     out_reg_sum = []
     optimizer.zero_grad()
     timers('batch_construction').start()
-    for global_step, (data, start, stop, image1, image2) in enumerate(
+    for global_step, (data, timestamps, images) in enumerate(
             loader, init_step * accumulation_steps):
         if global_step == num_steps * accumulation_steps:
             break
         timers('batch_construction').stop()
         timers('batch2gpu').start()
-        data, start, stop, image1, image2 = map(lambda x: x.to(device),
-                                                (data,
-                                                 start,
-                                                 stop,
-                                                 image1,
-                                                 image2))
+        num_batch_samples = timestamps[-1, -1] + 1
+        data, timestamps, images = map(lambda x: x.to(device), (data,
+                                                                timestamps,
+                                                                images))
         timers('batch2gpu').stop()
-        shape = image1.size()[-2:]
-        samples_passed += start.numel()
+        shape = images.size()[-2:]
+        samples_passed += num_batch_samples
         timers('forward').start()
         prediction, features = model(data,
-                                     start,
-                                     stop,
+                                     timestamps,
                                      shape,
                                      raw=is_raw,
                                      intermediate=True)
@@ -103,8 +100,8 @@ def train(model,
         timers('loss').start()
         loss, terms = combined_loss(evaluator,
                                     prediction,
-                                    image1,
-                                    image2,
+                                    images,
+                                    timestamps,
                                     features,
                                     weights=weights)
         smoothness, photometric, out_reg = terms
@@ -213,25 +210,21 @@ def validate(model, device, loader, samples_passed,
     out_reg_sum = []
     loss_sum = 0
     with torch.no_grad():
-        for data, start, stop, image1, image2 in loader:
-            data, start, stop, image1, image2 = map(lambda x: x.to(device),
-                                                    (data,
-                                                     start,
-                                                     stop,
-                                                     image1,
-                                                     image2))
-            shape = image1.size()[-2:]
+        for data, timestamps, images in loader:
+            data, timestamps, images = map(lambda x: x.to(device), (data,
+                                                                    timestamps,
+                                                                    images))
+            shape = images.size()[-2:]
             prediction, features = model(data,
-                                         start,
-                                         stop,
+                                         timestamps,
                                          shape,
                                          raw=is_raw,
                                          intermediate=True)
             tags = predictions2tag(prediction)
             loss, terms = combined_loss(evaluator,
                                         prediction,
-                                        image1,
-                                        image2,
+                                        images,
+                                        timestamps,
                                         features,
                                         weights=weights)
             smoothness, photometric, out_reg = terms
