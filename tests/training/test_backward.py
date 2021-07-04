@@ -31,16 +31,17 @@ def test_backward():
                             mish=False, sp=None),
             device='cpu')
     evaluator = init_losses(shape, batch_size, model, device='cpu')
-    prediction, flow_ts, sample_idx, features = model(events,
-                                                      timestamps,
-                                                      sample_idx,
-                                                      shape,
-                                                      raw=True,
-                                                      intermediate=True)
+    prediction, flow_ts, flow_sample_idx, features = model(events,
+                                                           timestamps,
+                                                           sample_idx,
+                                                           shape,
+                                                           raw=True,
+                                                           intermediate=True)
     loss, terms = combined_loss(evaluator,
                                 prediction,
                                 flow_ts,
-                                sample_idx,
+                                flow_sample_idx,
                                 images,
                                 timestamps,
+                                sample_idx,
                                 features)

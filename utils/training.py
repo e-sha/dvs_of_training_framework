@@ -15,13 +15,15 @@ def mean(v):
 def combined_loss(evaluator,
                   flows,
                   flow_ts,
-                  sample_idx,
+                  flow_sample_idx,
                   images,
                   timestamps,
+                  sample_idx,
                   features,
                   weights=[0.5, 1, 1]):
     arths = (features[f'dec_flow_arth_{i}'] for i in range(len(flows)))
-    terms = evaluator(flows, flow_ts, sample_idx, images, timestamps, arths)
+    terms = evaluator(flows, flow_ts, flow_sample_idx, images,
+                      timestamps, sample_idx, arths)
     loss = sum(map(lambda v, w: w*mean(v), terms, weights))
     return loss, terms
 

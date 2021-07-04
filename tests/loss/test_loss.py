@@ -9,11 +9,14 @@ def test_no_changes():
     B, H, W = 1, 5, 6
     dtype = torch.float32
     images = torch.zeros((2 * B, 1, H, W), dtype=dtype)
-    timestamps = torch.tensor([[0, 0], [0.4, 0]], dtype=dtype)
+    timestamps = torch.tensor([0, 0.4], dtype=dtype)
+    sample_idx = torch.LongTensor([0, 0])
+    flow_sample_idx = torch.LongTensor([0])
     flow = torch.zeros((B, 2, H, W), dtype=dtype)
     flow_arth = torch.zeros((B, 2, H, W), dtype=dtype)
     evaluator = Loss((H, W), 1, 'cpu')
-    loss = evaluator(images, timestamps, flow, flow_arth)
+    loss = evaluator(images, timestamps, sample_idx, flow, flow_arth,
+                     timestamps.view(1, 2), flow_sample_idx)
     assert len(loss) == 3
     for i, (l, gt) in enumerate(zip(loss, [0.002, 0.002, 0])):
         assert (l - gt).abs() < 5e-6, i
@@ -29,11 +32,14 @@ def test_zero_flow():
                                                          is_torch=True)
     images = torch.cat([image1[None, None], image2[None, None]],
                        axis=0).to(torch.float32)
-    timestamps = torch.tensor([[0, 0], [stop - start, 0]], dtype=dtype)
+    timestamps = torch.tensor([0, stop - start], dtype=dtype)
+    sample_idx = torch.LongTensor([0, 0])
+    flow_sample_idx = torch.LongTensor([0])
     flow = torch.zeros((B, 2, H, W), dtype=dtype)
     flow_arth = torch.zeros((B, 2, H, W), dtype=dtype)
     evaluator = Loss((H, W), 1, 'cpu')
-    loss = evaluator(images, timestamps, flow, flow_arth)
+    loss = evaluator(images, timestamps, sample_idx, flow, flow_arth,
+                     timestamps.view(1, 2), flow_sample_idx)
     assert len(loss) == 3
     #for i, (l, gt) in enumerate(zip(loss, [0.002, 0.878210, 0])):
     for i, (l, gt) in enumerate(zip(loss, [0.002, 0.622660, 0])):
@@ -51,11 +57,14 @@ def test_pred_flow():
                            is_torch=True, read_pred=True)
     images = torch.cat([image1[None, None], image2[None, None]],
                        axis=0).to(torch.float32)
-    timestamps = torch.tensor([[0, 0], [stop - start, 0]], dtype=dtype)
+    timestamps = torch.tensor([0, stop - start], dtype=dtype)
+    sample_idx = torch.LongTensor([0, 0])
+    flow_sample_idx = torch.LongTensor([0])
     flow = flow.permute(2, 0, 1)[None]
     flow_arth = torch.zeros((B, 2, H, W), dtype=dtype)
     evaluator = Loss((H, W), 1, 'cpu')
-    loss = evaluator(images, timestamps, flow, flow_arth)
+    loss = evaluator(images, timestamps, sample_idx, flow, flow_arth,
+                     timestamps.view(1, 2), flow_sample_idx)
     assert len(loss) == 3
     for i, (l, gt) in enumerate(zip(loss, [0.002120, 0.652659, 0.007802])):
         assert (l - gt).abs() < 5e-6, f'[{i}] {l} vs {gt}'

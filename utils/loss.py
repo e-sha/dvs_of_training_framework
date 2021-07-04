@@ -113,9 +113,10 @@ class Loss:
                                device=flow_arth.device)
         return loss
 
-    def __call__(self, images, timestamps, flow, flow_arth, flow_ts, sample_idx):
+    def __call__(self, images, timestamps, sample_idx, flow,
+                 flow_arth, flow_ts, flow_sample_idx):
         num_images, C, H, W = images.size()
-        batch_size = int(timestamps[-1, 1].item()) + 1
+        batch_size = int(sample_idx[-1]) + 1
         N = num_images - batch_size
         assert self.N >= N, 'This object should be used for batch of ' \
                             f'at most {self.N} samples, but {N} samples ' \
@@ -158,12 +159,12 @@ class Loss:
         self.timers('grid_construction').stop()
         self.timers('photometric_loss').start()
 
-        prev_image_indices = torch.full_like(timestamps[:, 1],
+        prev_image_indices = torch.full_like(sample_idx,
                                              False, dtype=torch.bool)
-        next_image_indices = torch.full_like(timestamps[:, 1],
+        next_image_indices = torch.full_like(sample_idx,
                                              False, dtype=torch.bool)
         prev_image_indices[:-1] = next_image_indices[1:] = \
-                timestamps[:-1, 1] == timestamps[1:, 1]
+                sample_idx[:-1] == sample_idx[1:]
 
         photometric = self.photometric_loss(images[prev_image_indices],
                                             images[next_image_indices],
@@ -184,10 +185,13 @@ class Losses:
         self.losses = [Loss(shape, batch_size, device, timers)
                        for shape in shapes]
 
-    def __call__(self, flows, images, timestamps, flow_arths):
+    def __call__(self, flows, flow_ts, flow_sample_idx, images, timestamps,
+                 sample_idx, flow_arths):
         result = []
         for loss, flow, flow_arth in zip(self.losses, flows, flow_arths):
             cur_shape = flow.size()[-2:]
+            print(images.shape)
             images = interpolate(images, cur_shape)
-            result.append(loss(images, timestamps, flow, flow_arth))
+            result.append(loss(images, timestamps, sample_idx, flow, flow_arth,
+                               flow_ts, flow_sample_idx))
         return tuple(zip(*result))
