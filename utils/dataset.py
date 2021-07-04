@@ -123,8 +123,6 @@ class DatasetImpl:
                 image2 = np.array(f['image2'])
                 stop = float(f['stop'][()])
         events = np.vstack(events)
-        # convert float to list with one element
-        start, stop = map(lambda x: [x], (start, stop))
 
         return events, start, stop, image1, image2
 
@@ -268,6 +266,8 @@ def add_sample_index(events, i):
 
 def collate_wrapper(batch):
     def to_tensor(x):
+        if isinstance(x, np.ndarray) and x.dtype == np.int_:
+            return torch.LongTensor(x)
         return torch.FloatTensor(x)
 
     #     0          1        2            3
@@ -275,8 +275,10 @@ def collate_wrapper(batch):
     # add sample index to events
     events = np.vstack([add_sample_index(sample[0], i)
                         for i, sample in enumerate(batch)])
-    timestamps = np.vstack([add_sample_index(sample[1], i)
+    sample_idx = np.hstack([np.full_like(sample[1], i, dtype=np.int_)
                             for i, sample in enumerate(batch)])
+    timestamps = np.hstack([sample[1]
+                            for sample in batch])
     images = np.vstack([x[2] for x in batch])
     images = np.expand_dims(images, axis=1)
     add_info = tuple()
@@ -295,4 +297,5 @@ def collate_wrapper(batch):
 
     return tuple(map(to_tensor, (events,
                                  timestamps,
+                                 sample_idx,
                                  images))) + add_info

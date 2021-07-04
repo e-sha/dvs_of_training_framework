@@ -113,7 +113,7 @@ class Loss:
                                device=flow_arth.device)
         return loss
 
-    def __call__(self, images, timestamps, flow, flow_arth):
+    def __call__(self, images, timestamps, flow, flow_arth, flow_ts, sample_idx):
         num_images, C, H, W = images.size()
         batch_size = int(timestamps[-1, 1].item()) + 1
         N = num_images - batch_size

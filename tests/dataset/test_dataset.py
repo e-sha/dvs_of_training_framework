@@ -21,7 +21,7 @@ def test_read():
                                            'of 2 images'
     assert images.ndim == 3
     assert images.shape == (2, 256, 256)
-    assert timestamps.shape == (2, 1)
+    assert timestamps.shape == (2,)
     assert timestamps[0] < timestamps[1]
 
 
@@ -52,7 +52,7 @@ def test_data_augmentation_collapse():
         start = float(f1['start'][()])
         stop = float(f2['stop'][()])
         gt_events[:, 2] -= start
-        gt_timestamps = np.array([[start], [stop]]) - start
+        gt_timestamps = np.array([0, stop - start])
         image1 = np.array(f1['image1'])[None]
         image2 = np.array(f2['image2'])[None]
         assert float(f1['stop'][()]) == float(f2['start'][()])
@@ -240,7 +240,7 @@ def test_data_augmentation_sequence():
         intermediate = float(f1['stop'][()])
         stop = float(f2['stop'][()])
         gt_events[:, 2] -= start
-        gt_timestamps = np.array([[start], [intermediate], [stop]]) - start
+        gt_timestamps = np.array([start, intermediate, stop]) - start
         image1 = np.array(f1['image1'])[None]
         image2 = np.array(f1['image2'])[None]
         image3 = np.array(f2['image2'])[None]
@@ -268,7 +268,7 @@ def test_dataloader():
                                               batch_size=2,
                                               pin_memory=True,
                                               shuffle=False)
-    events, timestamps, images, augmentation_params = next(iter(data_loader))
+    events, timestamps, sample_idx, images, augmentation_params = next(iter(data_loader))
 
     with h5py.File(data_path/'000000.hdf5', 'r') as f0, \
             h5py.File(data_path/'000001.hdf5', 'r') as f1:
@@ -286,10 +286,8 @@ def test_dataloader():
                                  dtype=torch.float32)
         stop0 = float(f0['stop'][()]) - start0
         stop1 = float(f1['stop'][()]) - start1
-        gt_timestamps = torch.tensor([[0, 0],
-                                      [stop0, 0],
-                                      [0, 1],
-                                      [stop1, 1]], dtype=torch.float32)
+        gt_timestamps = torch.tensor([0, stop0, 0, stop1], dtype=torch.float32)
+        gt_sample_idx = torch.tensor([0, 0, 1, 1], dtype=torch.long)
         image00 = torch.tensor(f0['image1'], dtype=torch.float32)[None, None]
         image01 = torch.tensor(f0['image2'], dtype=torch.float32)[None, None]
         image10 = torch.tensor(f1['image1'], dtype=torch.float32)[None, None]
@@ -299,4 +297,7 @@ def test_dataloader():
 
     assert torch.equal(events, gt_events)
     assert torch.equal(timestamps, gt_timestamps)
+    print(sample_idx)
+    print(gt_sample_idx)
+    assert torch.equal(sample_idx, gt_sample_idx)
     assert (images == gt_images).all()

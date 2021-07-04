@@ -22,13 +22,14 @@ def test_forward():
                                               batch_size=2,
                                               pin_memory=True,
                                               shuffle=False)
-    events, timestamps, images, augmentation_params = next(iter(data_loader))
+    events, timestamps, sample_idx, images, augmentation_params = next(iter(data_loader))
     model = init_model(
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                             mish=False, sp=None),
             device='cpu')
-    prediction, features = model(events,
-                                 timestamps,
-                                 shape,
-                                 raw=True,
-                                 intermediate=True)
+    prediction, timestamps, sample_idx, features = model(events,
+                                                         timestamps,
+                                                         sample_idx,
+                                                         shape,
+                                                         raw=True,
+                                                         intermediate=True)
