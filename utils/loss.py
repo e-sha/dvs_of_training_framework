@@ -88,7 +88,7 @@ class Loss:
         # x or y coordinate points out of border
         return ((warp_grid < -1) | (warp_grid > 1)).sum(1) > 0
 
-    def outborder_regularization_loss(self, flow_arth, warp_grid):
+    def outborder_regularization_loss(self, flow, warp_grid):
         N = warp_grid.size()[0]
         with torch.no_grad():
             mask = self.outborder_mask(warp_grid)
@@ -103,18 +103,18 @@ class Loss:
             # indices of samples in a batch
             idx = torch.searchsorted(stop,
                                      torch.arange(num_points,
-                                                  device=flow_arth.device),
+                                                  device=flow.device),
                                      right=True)
             denominators = denominators[idx] * N
 
-        values = flow_arth[mask]
+        values = flow[mask]
         loss = charbonier_loss(values,
                                denominator=denominators,
-                               device=flow_arth.device)
+                               device=flow.device)
         return loss
 
-    def __call__(self, images, timestamps, sample_idx, flow,
-                 flow_arth, flow_ts, flow_sample_idx):
+    def __call__(self, images, sample_idx, flow,
+                 flow_ts, flow_sample_idx):
         num_images, C, H, W = images.size()
         batch_size = int(sample_idx[-1]) + 1
         N = num_images - batch_size
@@ -136,16 +136,6 @@ class Loss:
                         f'be the same {H} vs {FH}'
         assert FW == W, 'Width of images and flows should ' \
                         f'be the same {W} vs {FW}'
-
-        AN, AC, AH, AW = flow_arth.size()
-        assert AN == N, 'Number of images and flow\'s hyperbolic ' \
-                        f'arctangenses should be the same {N} vs {AN}'
-        assert AC == 2, 'Flow\'s hyperbolic arctangenses should ' \
-                        'contain 2 channels (dx and dy)'
-        assert AH == H, 'Height of images and flow\'s hyperbolic ' \
-                        f'arctangenses should be the same {H} vs {AH}'
-        assert AW == W, 'Width of images and flow\'s hyperbolic ' \
-                        f'arctangenses should be the same {W} vs {AW}'
 
         self.timers('grid_construction').start()
         # compute grid to sample data (non-normalized)
@@ -186,7 +176,7 @@ class Losses:
                        for shape in shapes]
 
     def __call__(self, flows, flow_ts, flow_sample_idx, images, timestamps,
-                 sample_idx, flow_arths):
+                 sample_idx):
         result = []
         with torch.no_grad():
             P = flow_sample_idx.shape[0]
@@ -210,9 +200,9 @@ class Losses:
                 device=indices[2].device)).all()
             start_indices = indices[1][:P]
             stop_indices = indices[1][P:]
-        for loss, flow, flow_arth in zip(self.losses, flows, flow_arths):
+        for loss, flow in zip(self.losses, flows):
             cur_shape = flow.size()[-2:]
             images = interpolate(images, cur_shape)
-            result.append(loss(images, timestamps, sample_idx, flow, flow_arth,
+            result.append(loss(images, sample_idx, flow,
                                flow_ts, flow_sample_idx))
         return tuple(zip(*result))
