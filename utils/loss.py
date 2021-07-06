@@ -188,9 +188,30 @@ class Losses:
     def __call__(self, flows, flow_ts, flow_sample_idx, images, timestamps,
                  sample_idx, flow_arths):
         result = []
+        with torch.no_grad():
+            P = flow_sample_idx.shape[0]
+            # [2, D, P]
+            # D is a number of timestamps in the input data
+            # P is a number of predictions
+            sample_mask = sample_idx.view(1, -1, 1) == flow_sample_idx.view(1, 1, -1)
+            image_ts_mask = timestamps.view(1, -1, 1) == flow_ts.T.view(2, 1, -1)
+            image_mask = torch.logical_and(image_ts_mask, sample_mask)
+            # for each prediction has to be exactly one image in data
+            assert (image_mask.sum(1) == 1).all()
+            # (iFoS, D, P)
+            # iFoS is first or second image
+            indices = torch.nonzero(image_mask, as_tuple=True)
+            assert indices[0].numel() == 2 * P
+            assert (indices[0][:P] == 0).all()
+            assert (indices[0][P:] == 1).all()
+            assert (indices[2][:P] == torch.arange(P,
+                device=indices[2].device)).all()
+            assert (indices[2][P:] == torch.arange(P,
+                device=indices[2].device)).all()
+            start_indices = indices[1][:P]
+            stop_indices = indices[1][P:]
         for loss, flow, flow_arth in zip(self.losses, flows, flow_arths):
             cur_shape = flow.size()[-2:]
-            print(images.shape)
             images = interpolate(images, cur_shape)
             result.append(loss(images, timestamps, sample_idx, flow, flow_arth,
                                flow_ts, flow_sample_idx))
