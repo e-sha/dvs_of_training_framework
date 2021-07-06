@@ -113,11 +113,8 @@ class Loss:
                                device=flow.device)
         return loss
 
-    def __call__(self, images, sample_idx, flow,
-                 flow_ts, flow_sample_idx):
-        num_images, C, H, W = images.size()
-        batch_size = int(sample_idx[-1]) + 1
-        N = num_images - batch_size
+    def __call__(self, prev_images, next_images, flow):
+        N, C, H, W = prev_images.size()
         assert self.N >= N, 'This object should be used for batch of ' \
                             f'at most {self.N} samples, but {N} samples ' \
                             'are given'
@@ -127,6 +124,12 @@ class Loss:
         assert self.W == W, 'This object should be used for images of ' \
                             f'height {self.W}, but image of height {W} ' \
                             'are given'
+
+        NN, NC, NH, NW = next_images.size()
+        assert NN == N
+        assert NC == C
+        assert NH == H
+        assert NW == W
 
         FN, FC, FH, FW = flow.size()
         assert FN == N, 'Number of images and flows should ' \
@@ -149,15 +152,8 @@ class Loss:
         self.timers('grid_construction').stop()
         self.timers('photometric_loss').start()
 
-        prev_image_indices = torch.full_like(sample_idx,
-                                             False, dtype=torch.bool)
-        next_image_indices = torch.full_like(sample_idx,
-                                             False, dtype=torch.bool)
-        prev_image_indices[:-1] = next_image_indices[1:] = \
-                sample_idx[:-1] == sample_idx[1:]
-
-        photometric = self.photometric_loss(images[prev_image_indices],
-                                            images[next_image_indices],
+        photometric = self.photometric_loss(prev_images,
+                                            next_images,
                                             self.grid_holder)
         self.timers('photometric_loss').stop()
         self.timers('smoothness_loss').start()
@@ -202,7 +198,9 @@ class Losses:
             stop_indices = indices[1][P:]
         for loss, flow in zip(self.losses, flows):
             cur_shape = flow.size()[-2:]
-            images = interpolate(images, cur_shape)
-            result.append(loss(images, sample_idx, flow,
-                               flow_ts, flow_sample_idx))
+            with torch.no_grad():
+                images = interpolate(images, cur_shape)
+            result.append(loss(images[start_indices],
+                               images[stop_indices],
+                               flow))
         return tuple(zip(*result))
