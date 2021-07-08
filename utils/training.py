@@ -184,12 +184,6 @@ def train(model,
             loss_sum += loss.item()
             timers('logging').stop()
 
-        # remove the graph
-        timers('free').start()
-        del prediction
-        del features
-        timers('free').stop()
-
         timers.log(names=['batch_construction',
                           'batch2gpu',
                           'forward',
@@ -222,7 +216,7 @@ def validate(model, device, loader, samples_passed,
     out_reg_sum = []
     loss_sum = 0
     with torch.no_grad():
-        for events, timestamps, images in loader:
+        for events, timestamps, sample_idx, images in loader:
             loss, (smoothness, photometric, out_reg), tags = process_minibatch(
                     model, events, timestamps, sample_idx, images, FakeTimer(), device,
                     is_raw, evaluator, weights)
