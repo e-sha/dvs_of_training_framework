@@ -29,9 +29,12 @@ def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
     events = torch.zeros((0, 6), dtype=torch.float32, device=device)
     with torch.no_grad():
         out = model(events,
-                    torch.FloatTensor([0, 0.04],
-                                      device=device),
-                    torch.LongTensor([0, 0], device=device),
+                    torch.tensor([0, 0.04],
+                                 dtype=torch.float32,
+                                 device=device),
+                    torch.tensor([0, 0],
+                                 dtype=torch.long,
+                                 device=device),
                     shape, raw=True)
     out_shapes = tuple(tuple(flow.shape[2:]) for flow in out[0])
     return Losses(out_shapes, batch_size, device, timers=timers)
