@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 import torch
 import torch.nn as nn
+
 
 from mish.mish import Mish
 
@@ -177,7 +179,7 @@ def add_train_arguments(parser):
     parser.add_argument('--num_workers',
                         help='Number of workers to read data',
                         dest='num_workers',
-                        default=32,
+                        default=len(os.sched_getaffinity(0)),
                         type=int)
     parser.add_argument('--do_not_continue',
                         help='Do not continue training from checkpoints',
