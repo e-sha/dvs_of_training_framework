@@ -279,7 +279,7 @@ def main():
 
     loader = get_dataloader(get_trainset_params(args))
     loader_perf = get_dataloader_performance(loader)
-    print(f'An average dataloader performance is {loader_perf} ' \
+    print(f'An average dataloader performance is {loader_perf} '
           'seconds per iteration')
 
     serializer = Serializer(args.model,

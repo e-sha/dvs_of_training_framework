@@ -179,21 +179,24 @@ class Losses:
             # [2, D, P]
             # D is a number of timestamps in the input data
             # P is a number of predictions
-            sample_mask = sample_idx.view(1, -1, 1) == flow_sample_idx.view(1, 1, -1)
-            image_ts_mask = timestamps.view(1, -1, 1) == flow_ts.T.view(2, 1, -1)
+            sample_mask = sample_idx.view(1, -1, 1) == \
+                flow_sample_idx.view(1, 1, -1)
+            image_ts_mask = timestamps.view(1, -1, 1) == \
+                flow_ts.T.view(2, 1, -1)
             image_mask = torch.logical_and(image_ts_mask, sample_mask)
             # for each prediction has to be exactly one image in data
             assert (image_mask.sum(1) == 1).all()
             # (iFoS, D, P)
             # iFoS is first or second image
             indices = torch.nonzero(image_mask, as_tuple=True)
+            device = indices[2].device
             assert indices[0].numel() == 2 * P
             assert (indices[0][:P] == 0).all()
             assert (indices[0][P:] == 1).all()
             assert (indices[2][:P] == torch.arange(P,
-                device=indices[2].device)).all()
+                                                   device=device)).all()
             assert (indices[2][P:] == torch.arange(P,
-                device=indices[2].device)).all()
+                                                   device=device)).all()
             start_indices = indices[1][:P]
             stop_indices = indices[1][P:]
         for loss, flow in zip(self.losses, flows):

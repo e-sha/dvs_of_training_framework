@@ -37,11 +37,21 @@ def predictions2tag(predictions):
     return (f'{x.shape[-2]}x{x.shape[-1]}' for x in predictions)
 
 
-def process_minibatch(model, events, timestamps, sample_idx, images, timers,
-        device, is_raw, evaluator, weights):
+def process_minibatch(model,
+                      events,
+                      timestamps,
+                      sample_idx,
+                      images,
+                      timers,
+                      device,
+                      is_raw,
+                      evaluator,
+                      weights):
     timers('batch2gpu').start()
     events, timestamps, sample_idx, images = map(lambda x: x.to(device),
-            (events, timestamps, sample_idx, images))
+                                                 (events,
+                                                  timestamps,
+                                                  sample_idx, images))
     timers('batch2gpu').stop()
     shape = images.size()[-2:]
     timers('forward').start()
@@ -116,8 +126,8 @@ def train(model,
         timers('batch_construction').stop()
         samples_passed += sample_idx[-1] + 1
         loss, (smoothness, photometric, out_reg), tags = process_minibatch(
-                model, events, timestamps, sample_idx, images, timers, device, is_raw,
-                evaluator, weights)
+                model, events, timestamps, sample_idx, images, timers, device,
+                is_raw, evaluator, weights)
         loss /= accumulation_steps
         timers('backprop').start()
         loss.backward()
@@ -218,8 +228,8 @@ def validate(model, device, loader, samples_passed,
     with torch.no_grad():
         for events, timestamps, sample_idx, images in loader:
             loss, (smoothness, photometric, out_reg), tags = process_minibatch(
-                    model, events, timestamps, sample_idx, images, FakeTimer(), device,
-                    is_raw, evaluator, weights)
+                    model, events, timestamps, sample_idx, images, FakeTimer(),
+                    device, is_raw, evaluator, weights)
             photo_sum = add_loss(photo_sum, photometric)
             smooth_sum = add_loss(smooth_sum, smoothness)
             out_reg_sum = add_loss(out_reg_sum, out_reg)

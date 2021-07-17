@@ -23,8 +23,6 @@ def test_no_changes():
 
 
 def test_zero_flow():
-    #x0, y0 = 230, 200
-    #B, H, W = 1, 5, 6
     x0, y0 = 0, 0
     B, H, W = 1, 246, 340
     dtype = torch.float32
@@ -46,14 +44,12 @@ def test_zero_flow():
 
 
 def test_pred_flow():
-    #x0, y0 = 230, 200
-    #B, H, W = 1, 5, 6
     x0, y0 = 0, 0
-    B, H, W = 1, 246, 340
+    H, W = 246, 340
     dtype = torch.float32
     events, start, stop, image1, image2, flow = \
-            read_test_elem(1, box=[y0, x0, H, W],
-                           is_torch=True, read_pred=True)
+        read_test_elem(1, box=[y0, x0, H, W],
+                       is_torch=True, read_pred=True)
     images = torch.cat([image1[None, None], image2[None, None]],
                        axis=0).to(torch.float32)
     timestamps = torch.tensor([0, stop - start], dtype=dtype)

@@ -268,7 +268,8 @@ def test_dataloader():
                                               batch_size=2,
                                               pin_memory=True,
                                               shuffle=False)
-    events, timestamps, sample_idx, images, augmentation_params = next(iter(data_loader))
+    events, timestamps, sample_idx, images, augmentation_params = \
+        next(iter(data_loader))
 
     with h5py.File(data_path/'000000.hdf5', 'r') as f0, \
             h5py.File(data_path/'000001.hdf5', 'r') as f1:

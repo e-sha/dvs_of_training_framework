@@ -74,9 +74,9 @@ class DatasetImpl:
                  collapse_length=6,  # maximum index distance between images
                                      # used for a single Optical Flow
                                      # predictions
-                 max_seq_length=1, # maximum number of expected OF
-                                   # predictions per sample
-                 is_static_seq_length = True,
+                 max_seq_length=1,   # maximum number of expected OF
+                                     # predictions per sample
+                 is_static_seq_length=True,
                  return_aug=False,  # does return augmentation parameters
                  is_raw=True,  # does return raw events or event images
                  is_align=True,  # shift timestamps to get a 0 start timestamp
@@ -129,7 +129,8 @@ class DatasetImpl:
     def _rotate(self, images, events, angle):
         # we have to know image shape to initialize random_rotation
         if self.random_rotation is None:
-            self.random_rotation = RandomRotation(self.angle, images.shape[-2:])
+            self.random_rotation = RandomRotation(self.angle,
+                                                  images.shape[-2:])
         return self.random_rotation(images, events, angle)
 
     def __getitem__(self,
@@ -180,7 +181,8 @@ class DatasetImpl:
         image_ts = None
         images = None
         for i in range(seq_length):
-            _events, _start, _stop, _image1, _image2 = self._get_k_elems(idx + i * k, k)
+            _events, _start, _stop, _image1, _image2 = \
+                self._get_k_elems(idx + i * k, k)
             assert _image1.ndim == _image2.ndim
             assert all([x == y for x, y in zip(_image1.shape, _image2.shape)])
             if _image1.ndim == 2:
@@ -293,7 +295,8 @@ def collate_wrapper(batch):
         box = np.vstack([x[3].reshape(1, -1) for x in augmentation_params])
         angle = np.array([x[4] for x in augmentation_params])
         is_flip = np.array([x[5] for x in augmentation_params])
-        add_info = (tuple(map(to_tensor, (idx, k, box, angle, is_flip))), )
+        add_info = (tuple(map(to_tensor,
+                              (idx, seq_length, k, box, angle, is_flip))), )
 
     return tuple(map(to_tensor, (events,
                                  timestamps,

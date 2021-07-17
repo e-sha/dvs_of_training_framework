@@ -31,7 +31,6 @@ class EventCrop:
     def __call__(self, events, box=None):
         if box is None:
             box = self.box
-        #x, y, t, p = events.T
         x = events[:, 0]
         y = events[:, 1]
         mask = np.logical_and(
@@ -56,7 +55,7 @@ class IImageCrop(abc.ABC):
         channel_first = self.channel_first
         if img.ndim == 2:
             channel_first = True
-        elif not self.channel_first:
+        elif not channel_first:
             # move channel axis from -1 to -3 position
             #      -3,-2,-1          -3,-2,-1
             # (..., H, W, C) -> (..., C, H, W)
@@ -66,7 +65,7 @@ class IImageCrop(abc.ABC):
         res = img[...,
                   box[0]:box[0] + box[2],
                   box[1]:box[1] + box[3]]
-        if img.ndim != 2 and not self.channel_first:
+        if img.ndim != 2 and not channel_first:
             # move channel axis from -3 to -1 position
             #      -3,-2,-1          -3,-2,-1
             # (..., C, H, W) -> (..., H, W, C)
@@ -114,7 +113,7 @@ class ImageRandomCrop(IImageCrop):
 
     def _choose_box(self, img):
         start = list(map(lambda x, y: self.__randint(x - y),
-            img.shape[-2:], self.shape))
+                         img.shape[-2:], self.shape))
         return start + list(self.shape)
 
 

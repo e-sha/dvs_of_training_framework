@@ -19,7 +19,10 @@ except ImportError:
     raise
 
 
-def read_test_elem(i, box=[0, 0, np.inf, np.inf], is_torch=False, read_pred=False):
+def read_test_elem(i,
+                   box=[0, 0, np.inf, np.inf],
+                   is_torch=False,
+                   read_pred=False):
     map_function = torch.tensor if is_torch else lambda x: x
     filename = f'{i:06d}.hdf5'
     with h5py.File(data_path/filename, 'r') as f:

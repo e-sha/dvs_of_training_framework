@@ -1,4 +1,3 @@
-import shutil
 from tests.utils import test_path
 import torch
 import tempfile
@@ -43,9 +42,10 @@ def test_trainloop():
                         for i in range(4)][::-1], 2, args.device)
     with tempfile.TemporaryDirectory() as td:
         logger = torch.utils.tensorboard.SummaryWriter(log_dir=td)
-        train(model=model, device=args.device, loader=data_loader, optimizer=optimizer,
-              num_steps=args.training_steps, scheduler=scheduler, logger=logger,
-              evaluator=evaluator, timers=FakeTimer())
+        train(model=model, device=args.device, loader=data_loader,
+              optimizer=optimizer, num_steps=args.training_steps,
+              scheduler=scheduler, logger=logger, evaluator=evaluator,
+              timers=FakeTimer())
         del logger
 
 
