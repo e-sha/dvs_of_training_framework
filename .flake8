@@ -1,0 +1,2 @@
+[flake8]
+exclude = .git,__pycache__,data,config,mish,RAdam,Ranger-Deep-Learning-Optimizer,pybind11

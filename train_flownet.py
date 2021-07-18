@@ -115,19 +115,23 @@ def get_valset_params(args):
     return params
 
 
-def get_dataloader(params):
+def get_dataset(params):
     kwargs = {'path': params.path,
               'shape': params.shape,
               'augmentation': params.augmentation,
               'collapse_length': params.collapse_length,
               'is_raw': params.is_raw}
-    loader_kwargs = {}
     if params.infinite:
-        dataset = IterableDataset(shuffle=params.shuffle, **kwargs)
+        return IterableDataset(shuffle=params.shuffle, **kwargs)
+    return Dataset(**kwargs)
+
+
+def get_dataloader(params):
+    if params.infinite:
+        loader_kwargs = {}
     else:
-        dataset = Dataset(**kwargs)
         loader_kwargs['shuffle'] = params.shuffle
-    return torch.utils.data.DataLoader(dataset,
+    return torch.utils.data.DataLoader(get_dataset(params),
                                        collate_fn=params.collate_fn,
                                        batch_size=params.batch_size,
                                        num_workers=params.num_workers,
@@ -232,36 +236,6 @@ def create_hooks(args, model, optimizer, losses, logger, serializer):
     return periodic_hooks, hooks
 
 
-def get_dataloader_performance(loader,
-                               start: int = 20,
-                               num_iters: int = 50):
-    """Returns average dataloader performance
-
-    Args:
-        loader:
-            An iterable object to evaluate.
-        start:
-            A number of iteration to skip before evaluation.
-        num_iters:
-            A number of iterations for evaluation.
-
-    Returns:
-        An average time required for a single iteration of the loader.
-    """
-    from time import perf_counter
-    assert num_iters > 0
-    t0 = None
-    t1 = None
-    for i, _ in enumerate(loader):
-        if i == start:
-            t0 = perf_counter()
-        elif i == start + num_iters:
-            t1 = perf_counter()
-            break
-    assert t0 is not None and t1 is not None
-    return (t1 - t0) / num_iters
-
-
 def main():
     # torch.autograd.set_detect_anomaly(True)
 
@@ -278,9 +252,6 @@ def main():
     model = init_model(args, device)
 
     loader = get_dataloader(get_trainset_params(args))
-    loader_perf = get_dataloader_performance(loader)
-    print(f'An average dataloader performance is {loader_perf} '
-          'seconds per iteration')
 
     serializer = Serializer(args.model,
                             args.num_checkpoints,
