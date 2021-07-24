@@ -48,17 +48,53 @@ def encode_batch(events: torch.Tensor,
         events.elements_per_sample is a one-dimensional short tensor
         representing a number of elements in each sample;
         timestamps is one-dimensional float tensor representing
-        timestaps of images
+        timestamps of images
         sample_idx is one-dimensional short tensor representing
         images is a uint8 tensor representing images
     """
-    pass
+    x = events[:, 0].to(torch.short)
+    y = events[:, 1].to(torch.short)
+    t = events[:, 2]
+    p = ((events[:, 3] + 1) / 2).to(torch.bool)
+    e = events[:, 4].to(torch.long).numpy()
+    s = events[:, 5].to(torch.short).numpy()
+
+    batch_size = sample_idx[-1].item() + 1
+
+    elements_per_sample = np.zeros(batch_size, dtype=np.short) - 1
+    np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
+    elements_per_sample = torch.tensor(elements_per_sample)
+    new_e = np.zeros(e.size, dtype=np.uint8)
+    element_shift = np.array([0] + elements_per_sample.tolist(), dtype=np.long)
+    element_shift = np.cumsum(element_shift)
+    new_e = e + element_shift[s]
+    total_elements = int(new_e[-1]) + 1
+
+    events_per_element = np.zeros(total_elements, dtype=np.long)
+    np.add.at(events_per_element, new_e, np.ones_like(new_e))
+    events_per_element = torch.tensor(events_per_element)
+    return {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
+            'events_per_element': events_per_element,
+            'elements_per_sample': elements_per_sample}, \
+        timestamps, images.to(torch.uint8)
 
 
 def decode_batch(events: dict,
                  timestamps: torch.Tensor,
                  images: torch.Tensor):
     """Decodes a batch of encoded images
+
+    Args:
+        events:
+            Events as a dict of (x, y, timestamp, polarity, events_per_element,
+            elements_per_sample)
+        timestamps:
+            Timestamps of images
+        images:
+            Array of images
+
+    Returns:
+        Batch of data as a tuple of (events, timestamps, sample_idx, images)
     """
     pass
 
