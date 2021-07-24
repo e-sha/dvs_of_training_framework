@@ -1,4 +1,5 @@
 import h5py
+import numpy as np
 import sys
 import torch
 from tqdm import tqdm
@@ -59,6 +60,25 @@ def main(args):
         events_p_after = events_p.to(torch.bool)
         events_e_after = events_e.to(torch.uint8)
         events_s_after = events_s.to(torch.uint8)
+        batch_size = sample_idx[-1].item() + 1
+
+        elements_per_sample = np.zeros(batch_size, dtype=np.uint32) - 1
+        np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
+        new_events_e = np.zeros(events_e.numel(), dtype=np.uint8)
+        mask = np.logical_or(events_e.numpy()[:-1] != events_e.numpy()[1:],
+                             events_s.numpy()[:-1] != events_s.numpy()[1:])
+        new_events_e[1:] = np.cumsum(mask.astype(np.uint32))
+        total_elements = new_events_e[-1] + 1
+        events_per_element = np.zeros(total_elements, dtype=np.uint32)
+        np.add.at(events_per_element, new_events_e, np.ones_like(new_events_e))
+        print(events_per_element)
+
+        events_per_sample = np.zeros(batch_size, dtype=np.uint32)
+        np.add.at(events_per_sample, events_s_after, np.ones(events_s_after.numel()))
+        events_s_after = torch.zeros_like(events_e_after)
+        tmp = np.cumsum(events_per_sample)
+        for i in range(batch_size - 1):
+            events_s_after[tmp[i] : tmp[i + 1]] = i + 1
         timestamps_after = timestamps
         sample_idx_after = sample_idx.to(torch.uint8)
         images_after = images.to(torch.uint8)
@@ -83,7 +103,7 @@ def main(args):
             event_group.create_dataset('t', data=events_t_after)
             event_group.create_dataset('p', data=events_p_after)
             event_group.create_dataset('e', data=events_e_after)
-            event_group.create_dataset('s', data=events_s_after)
+            event_group.create_dataset('sample_size', data=events_per_sample)
             f.create_dataset('timestamps', data=timestamps_after)
             f.create_dataset('sample_idx', data=sample_idx_after)
             f.create_dataset('images', data=images_after)

@@ -17,6 +17,52 @@ def read_info(filename):
     return dict(zip(sets, start_times))
 
 
+def encode_batch(events: torch.Tensor,
+                 timestamps: torch.Tensor,
+                 sample_idx: torch.Tensor,
+                 images: torch.Tensor):
+    """Encodes a batch to decrease storage space
+
+    Args:
+        events:
+            Events for a batch in [x, y, timestamp, polarity, element, sample]
+        timestamps:
+            Timestamps of images in the batch
+        sample_idx:
+            Sample indices of the timestamps and images
+        images:
+            Images at the given timestamps
+
+    Returns:
+        A tuple of (events, timestamps, images).
+        events is a dictionary with keys
+        (x, y, timestamp, polarity, events_per_element, elements_per_sample),
+        where events.x is one-dimensional tensor of x coordinates as
+        torch.int16;
+        events.y is one-dimensional tensor of y coordinates as torch.int16;
+        events.timestamps is a one-dimensional tensor of timestamps as
+        torch.float32;
+        events.polarities is a one-dimensional boolean tensor of polarities;
+        events.events_per_element is a one-dimensional short tensor
+        representing a number of events in each element;
+        events.elements_per_sample is a one-dimensional short tensor
+        representing a number of elements in each sample;
+        timestamps is one-dimensional float tensor representing
+        timestaps of images
+        sample_idx is one-dimensional short tensor representing
+        images is a uint8 tensor representing images
+    """
+    pass
+
+
+def decode_batch(events: dict,
+                 timestamps: torch.Tensor,
+                 images: torch.Tensor):
+    """Decodes a batch of encoded images
+    """
+    pass
+
+
 class IterableDataset(torch.utils.data.IterableDataset):
     def __init__(self, **kwargs):
         super().__init__()
