@@ -96,7 +96,39 @@ def decode_batch(events: dict,
     Returns:
         Batch of data as a tuple of (events, timestamps, sample_idx, images)
     """
-    pass
+    polarity = events['polarity'].view(-1, 1).to(torch.float32) * 2 - 1
+    sample_idx = torch.cat([
+        torch.full([n.item() + 1], i, dtype=torch.long)
+        for i, n in enumerate(events['elements_per_sample'])])
+    batch_size = events['elements_per_sample'].numel()
+    sample_shift = torch.zeros(batch_size + 1, dtype=torch.long)
+    sample_shift[1:] = torch.cumsum(events['elements_per_sample'], dim=0)
+    num_elements = events['events_per_element'].numel()
+    events_shift = torch.zeros(num_elements + 1, dtype=torch.long)
+    events_shift[1:] = torch.cumsum(events['events_per_element'], dim=0)
+    element_index = []
+    sample_index = []
+    for i, num_elements in enumerate(events['elements_per_sample']):
+        current_events_per_element = \
+                events['events_per_element'][sample_shift[i]:
+                                             sample_shift[i + 1]]
+        num_events = sum(current_events_per_element).item()
+        element_index.append(torch.cat(
+            [torch.full([n], j, dtype=torch.float32)
+             for j, n in enumerate(current_events_per_element)]))
+        sample_index.append(torch.full([num_events], i, dtype=torch.float32))
+    element_index = torch.cat(element_index)
+    sample_index = torch.cat(sample_index)
+    print(element_index)
+    print(sample_index)
+    out_events = torch.cat([events['x'].view(-1, 1).to(torch.float32),
+                            events['y'].view(-1, 1).to(torch.float32),
+                            events['timestamp'].view(-1, 1),
+                            polarity,
+                            element_index.view(-1, 1),
+                            sample_index.view(-1, 1)], dim=1)
+    return out_events, timestamps.to(torch.float32), \
+        sample_idx, images.to(torch.float32)
 
 
 class IterableDataset(torch.utils.data.IterableDataset):

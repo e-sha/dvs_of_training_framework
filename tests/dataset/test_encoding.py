@@ -30,7 +30,7 @@ class TestDatasetEncoding:
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),
-            'sample_idx': torch.tensor([0, 0, 0, 1, 1, 2, 2, 2, 2],
+            'sample_idx': torch.tensor([0, 0, 0, 1, 1, 2, 2, 2, 2, 2],
                                        dtype=torch.long),
             'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
                                    dtype=torch.float32).view(-1, 1, 1, 1)
@@ -48,7 +48,7 @@ class TestDatasetEncoding:
                        'events_per_element': torch.tensor([1, 2, 1, 1,
                                                            0, 1, 1],
                                                           dtype=torch.long),
-                       'elements_per_sample': torch.tensor([2, 1, 3],
+                       'elements_per_sample': torch.tensor([2, 1, 4],
                                                            dtype=torch.short)},
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],

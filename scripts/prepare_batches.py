@@ -17,26 +17,9 @@ except ImportError:
 
 try:
     from train_flownet import get_dataloader, parse_args
+    from utils.dataset import encode_batch
 except ImportError:
     raise
-
-
-def get_size(tensor):
-    return tensor.nelement() * tensor.element_size()
-
-
-def print_info(tensor_before, tensor_after, name):
-    if isinstance(tensor_before, torch.Tensor):
-        tensor_before = [tensor_before]
-    if isinstance(tensor_after, torch.Tensor):
-        tensor_after = [tensor_after]
-    size_before = sum(map(get_size, tensor_before))
-    size_after = sum(map(get_size, tensor_after))
-    print(f'{name}: before {size_before} after {size_after} -- '
-          f'{size_after / size_before * 100}%')
-    for before, after in zip(tensor_before, tensor_after):
-        tmp = after.to(before.dtype)
-        assert torch.equal(before, tmp)
 
 
 def main(args):
@@ -48,65 +31,22 @@ def main(args):
     j = 0
     for i, (events, timestamps, sample_idx, images) in tqdm(enumerate(loader),
                                                             total=num_steps):
-        events_x = events[:, 0]
-        events_y = events[:, 1]
-        events_t = events[:, 2]
-        events_p = (events[:, 3] + 1) / 2
-        events_e = events[:, 4]
-        events_s = events[:, 5]
-        events_x_after = events_x.to(torch.int16)
-        events_y_after = events_y.to(torch.int16)
-        events_t_after = events_t
-        events_p_after = events_p.to(torch.bool)
-        events_e_after = events_e.to(torch.uint8)
-        events_s_after = events_s.to(torch.uint8)
-        batch_size = sample_idx[-1].item() + 1
-
-        elements_per_sample = np.zeros(batch_size, dtype=np.uint32) - 1
-        np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
-        new_events_e = np.zeros(events_e.numel(), dtype=np.uint8)
-        mask = np.logical_or(events_e.numpy()[:-1] != events_e.numpy()[1:],
-                             events_s.numpy()[:-1] != events_s.numpy()[1:])
-        new_events_e[1:] = np.cumsum(mask.astype(np.uint32))
-        total_elements = new_events_e[-1] + 1
-        events_per_element = np.zeros(total_elements, dtype=np.uint32)
-        np.add.at(events_per_element, new_events_e, np.ones_like(new_events_e))
-        print(events_per_element)
-
-        events_per_sample = np.zeros(batch_size, dtype=np.uint32)
-        np.add.at(events_per_sample, events_s_after, np.ones(events_s_after.numel()))
-        events_s_after = torch.zeros_like(events_e_after)
-        tmp = np.cumsum(events_per_sample)
-        for i in range(batch_size - 1):
-            events_s_after[tmp[i] : tmp[i + 1]] = i + 1
-        timestamps_after = timestamps
-        sample_idx_after = sample_idx.to(torch.uint8)
-        images_after = images.to(torch.uint8)
-        # print_info(events_x, events_x_after, 'x')
-        # print_info(events_y, events_y_after, 'y')
-        # print_info(events_t, events_t_after, 't')
-        # print_info(events_p, events_p_after, 'p')
-        # print_info(events_e, events_e_after, 'e')
-        # print_info(events_s, events_s_after, 's')
-        # print_info(timestamps, timestamps_after, 'timestamps')
-        # print_info(sample_idx, sample_idx_after, 'sample_idx')
-        # print_info(images, images_after, 'images')
-        # print_info([events_x, events_y, events_t, events_p, events_e,
-        #             events_s, timestamps, sample_idx, images],
-        #            [events_x_after, events_y_after, events_t_after,
-        #             events_p_after, events_e_after, events_s_after,
-        #             timestamps_after, sample_idx_after, images_after], 'all')
+        events, timestamps, images = encode_batch(events,
+                                                  timestamps,
+                                                  sample_idx,
+                                                  images)
         with h5py.File(out_path/f'{j}.hdf5', 'w') as f:
             event_group = f.create_group('events')
-            event_group.create_dataset('x', data=events_x_after)
-            event_group.create_dataset('y', data=events_y_after)
-            event_group.create_dataset('t', data=events_t_after)
-            event_group.create_dataset('p', data=events_p_after)
-            event_group.create_dataset('e', data=events_e_after)
-            event_group.create_dataset('sample_size', data=events_per_sample)
-            f.create_dataset('timestamps', data=timestamps_after)
-            f.create_dataset('sample_idx', data=sample_idx_after)
-            f.create_dataset('images', data=images_after)
+            event_group.create_dataset('x', data=events['x'])
+            event_group.create_dataset('y', data=events['y'])
+            event_group.create_dataset('timestamp', data=events['timestamp'])
+            event_group.create_dataset('polarity', data=events['polarity'])
+            event_group.create_dataset('events_per_element',
+                                       data=events['events_per_element'])
+            event_group.create_dataset('elements_per_sample',
+                                       data=events['elements_per_sample'])
+            f.create_dataset('timestamps', data=timestamps)
+            f.create_dataset('images', data=images)
         j += 1
         if i + 1 == num_steps:
             break
