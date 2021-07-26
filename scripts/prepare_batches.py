@@ -1,5 +1,4 @@
 import h5py
-import numpy as np
 import sys
 import torch
 from tqdm import tqdm
@@ -20,6 +19,28 @@ try:
     from utils.dataset import encode_batch
 except ImportError:
     raise
+
+
+def join_batches(batches):
+    if len(batches) == 0:
+        return {'x': torch.tensor([], dtype=torch.short),
+                'y': torch.tensor([], dtype=torch.short),
+                'timestamp': torch.tensor([], dtype=torch.float32),
+                'polarity': torch.tensor([], dtype=torch.bool),
+                'events_per_element': torch.tensor([], dtype=torch.short),
+                'elements_per_sample': torch.tensor([], dtype=torch.short)}, \
+            torch.tensor([], dtype=torch.float32), \
+            torch.tensor([], dtype=torch.uint8)
+    result = {}
+    for k in batches[0].keys():
+        if isinstance(batches[0][k], dict):
+            result[k] = {}
+            for sk in batches[0][k].keys():
+                result[k][sk] = torch.cat([el[k][sk] for el in batches])
+        else:
+            assert isinstance(batches[0][k], torch.Tensor)
+            result[k] = torch.cat(el[k] for el in batches)
+    return result
 
 
 def main(args):
