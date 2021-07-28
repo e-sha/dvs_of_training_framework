@@ -4,6 +4,7 @@ import numpy as np
 import random
 import torch
 import torch.utils.data
+import typing
 
 from EV_FlowNet.net import compute_event_image
 from .data import EventCrop, ImageRandomCrop
@@ -15,6 +16,41 @@ def read_info(filename):
         sets = list(map(lambda x: x.decode(), f['set_name']))
         start_times = list(f['start_time'])
     return dict(zip(sets, start_times))
+
+
+def join_batches(batches: typing.List[typing.Dict]):
+    """ Joins encoded batches to build a bigger batch
+
+    Args:
+        batches:
+            List of encoded batches. Each batch is a dict with keys
+            (events, timestamps, images)
+
+    Returns:
+        A joined batch as a dict with keys (events, timestamps, images)
+    """
+
+    if len(batches) == 0:
+        return {'events': {'x': torch.tensor([], dtype=torch.short),
+                           'y': torch.tensor([], dtype=torch.short),
+                           'timestamp': torch.tensor([], dtype=torch.float32),
+                           'polarity': torch.tensor([], dtype=torch.bool),
+                           'events_per_element':
+                           torch.tensor([], dtype=torch.short),
+                           'elements_per_sample':
+                           torch.tensor([], dtype=torch.short)},
+                'timestamps': torch.tensor([], dtype=torch.float32),
+                'images': torch.tensor([], dtype=torch.uint8)}
+    result = {}
+    for k in batches[0].keys():
+        if isinstance(batches[0][k], dict):
+            result[k] = {}
+            for sk in batches[0][k].keys():
+                result[k][sk] = torch.cat([el[k][sk] for el in batches])
+        else:
+            assert isinstance(batches[0][k], torch.Tensor)
+            result[k] = torch.cat([el[k] for el in batches])
+    return result
 
 
 def encode_batch(events: torch.Tensor,

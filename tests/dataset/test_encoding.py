@@ -1,5 +1,5 @@
 import torch
-from utils.dataset import encode_batch, decode_batch
+from utils.dataset import encode_batch, decode_batch, join_batches
 
 
 def compare(computed, groundtruth, prefix=''):
@@ -57,6 +57,42 @@ class TestDatasetEncoding:
                                    dtype=torch.uint8).view(-1, 1, 1, 1)
                                                      .tile(1, 1, 10, 10)}
 
+        self.encoded_parts = [
+            {'events': {'x': torch.tensor([1, 2, 2, 1],
+                                          dtype=torch.short),
+                        'y': torch.tensor([2, 1, 3, 4],
+                                          dtype=torch.short),
+                        'timestamp': torch.tensor([0.02, 0.06, 0.07, 0.015],
+                                                  dtype=torch.float32),
+                        'polarity': torch.tensor([False, True, False,
+                                                  True]),
+                        'events_per_element': torch.tensor([1, 2, 1],
+                                                           dtype=torch.long),
+                        'elements_per_sample':
+                        torch.tensor([2, 1], dtype=torch.short)},
+             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
+                                        dtype=torch.float32),
+             'images': torch.tensor([0, 1, 2, 3, 4],
+                                    dtype=torch.uint8).view(-1, 1, 1, 1)
+                                                      .tile(1, 1, 10, 10)},
+            {'events': {'x': torch.tensor([4, 6, 7],
+                                          dtype=torch.short),
+                        'y': torch.tensor([1, 6, 8],
+                                          dtype=torch.short),
+                        'timestamp': torch.tensor([0.01, 0.05, 0.07],
+                                                  dtype=torch.float32),
+                        'polarity': torch.tensor([True, True, False]),
+                        'events_per_element': torch.tensor([1, 0, 1, 1],
+                                                           dtype=torch.long),
+                        'elements_per_sample':
+                        torch.tensor([4], dtype=torch.short)},
+             'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
+                                        dtype=torch.float32),
+             'images': torch.tensor([5, 6, 7, 8],
+                                    dtype=torch.uint8).view(-1, 1, 1, 1)
+                                                      .tile(1, 1, 10, 10)}
+            ]
+
     def test_encode(self):
         encoded = encode_batch(**self.decoded)
         encoded = {'events': encoded[0],
@@ -71,3 +107,7 @@ class TestDatasetEncoding:
                    'sample_idx': decoded[2],
                    'images': decoded[3]}
         compare(decoded, self.decoded)
+
+    def test_join(self):
+        joined = join_batches(self.encoded_parts)
+        compare(joined, self.encoded)
