@@ -119,8 +119,8 @@ def train(model,
     out_reg_sum = []
     optimizer.zero_grad()
     timers('batch_construction').start()
-    for global_step, (events, timestamps, sample_idx, images) in enumerate(
-            loader, init_step * accumulation_steps):
+    for global_step, (events, timestamps, sample_idx, images, _) \
+            in enumerate(loader, init_step * accumulation_steps):
         if global_step == num_steps * accumulation_steps:
             break
         timers('batch_construction').stop()
@@ -226,7 +226,7 @@ def validate(model, device, loader, samples_passed,
     out_reg_sum = []
     loss_sum = 0
     with torch.no_grad():
-        for events, timestamps, sample_idx, images in loader:
+        for events, timestamps, sample_idx, images, _ in loader:
             loss, (smoothness, photometric, out_reg), tags = process_minibatch(
                     model, events, timestamps, sample_idx, images, FakeTimer(),
                     device, is_raw, evaluator, weights)

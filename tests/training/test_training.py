@@ -26,7 +26,6 @@ def test_trainloop():
                           augmentation=False,
                           collapse_length=1,
                           is_raw=True,
-                          return_aug=False,
                           max_seq_length=1)
     data_loader = torch.utils.data.DataLoader(dataset,
                                               collate_fn=collate_wrapper,
@@ -64,7 +63,6 @@ def test_validation():
                           augmentation=False,
                           collapse_length=1,
                           is_raw=True,
-                          return_aug=False,
                           max_seq_length=1)
     data_loader = torch.utils.data.DataLoader(dataset,
                                               collate_fn=collate_wrapper,

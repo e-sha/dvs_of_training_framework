@@ -21,18 +21,19 @@ except ImportError:
 
 
 def main(args):
-    loader = get_dataloader(get_trainset_params(args))
+    dataset_params = get_trainset_params(args)
+    dataset_params.return_aug = True
+    loader = get_dataloader(dataset_params)
+    print(loader.dataset._dataset.return_aug)
     dataset_name = f'{loader.dataset._dataset.path.name}_preprocessed'
     out_path = args.data_path/dataset_name
     out_path.mkdir(exist_ok=True)
     num_steps = args.accum_step * args.training_steps
     j = 0
-    for i, (events, timestamps, sample_idx, images) in tqdm(enumerate(loader),
-                                                            total=num_steps):
-        events, timestamps, images = encode_batch(events,
-                                                  timestamps,
-                                                  sample_idx,
-                                                  images)
+    for i, (events, timestamps, sample_idx, images, augmentation_params) \
+            in tqdm(enumerate(loader), total=num_steps):
+        events, timestamps, images, augmentation_params = encode_batch(
+                events, timestamps, sample_idx, images, augmentation_params)
         with h5py.File(out_path/f'{j}.hdf5', 'w') as f:
             event_group = f.create_group('events')
             event_group.create_dataset('x', data=events['x'])
@@ -45,6 +46,9 @@ def main(args):
                                        data=events['elements_per_sample'])
             f.create_dataset('timestamps', data=timestamps)
             f.create_dataset('images', data=images)
+            augmentation_group = f.create_group('augmentation')
+            for k, v in augmentation_params.items():
+                augmentation_group.create_dataset(k, data=v)
         j += 1
         if i + 1 == num_steps:
             break

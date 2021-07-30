@@ -14,7 +14,7 @@ def test_read():
                       collapse_length=2,
                       is_raw=True)
     assert len(dataset) > 0
-    events, timestamps, images = dataset[0]
+    events, timestamps, images, augmentation_parameters = dataset[0]
     assert events.shape[1] == 5, 'Events are the matrix of ' \
                                  '5 columns [x, y, p, t, k]'
     assert (events[:, 4] != 0).sum() == 0, 'Sample is a sequence ' \
@@ -30,8 +30,7 @@ def test_data_augmentation_collapse():
                           shape=[256, 256],
                           augmentation=True,
                           collapse_length=2,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     gt_idx, gt_k, gt_flip, gt_angle = 1, 2, False, 0
     gt_box, gt_seq_length = np.array([0, 0, 260, 346]), 1
     events, timestamps, images, aug_params = dataset.__getitem__(
@@ -68,8 +67,7 @@ def test_data_augmentation_flip():
                           shape=[256, 256],
                           augmentation=True,
                           collapse_length=2,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     gt_idx, gt_k, gt_flip, gt_angle = 1, 1, True, 0
     gt_box, gt_seq_length = np.array([0, 0, 260, 346]), 1
     events, timestamps, first_images, aug_params = dataset.__getitem__(
@@ -113,8 +111,7 @@ def test_data_augmentation_angle():
                           shape=[256, 256],
                           augmentation=True,
                           collapse_length=2,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     gt_idx, gt_k, gt_flip, gt_angle = 1, 1, False, 90
     gt_box, gt_seq_length = np.array([0, 0, 260, 346]), 1
     events, timestamps, rotated_images, aug_params = dataset.__getitem__(
@@ -165,8 +162,7 @@ def test_data_augmentation_crop():
                           shape=[256, 256],
                           augmentation=True,
                           collapse_length=2,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     gt_idx, gt_k, gt_flip, gt_angle = 1, 1, False, 0
     gt_box, gt_seq_length = np.array([1, 2, 100, 150]), 1
     events, timestamps, images, aug_params = dataset.__getitem__(
@@ -213,8 +209,7 @@ def test_data_augmentation_sequence():
                           shape=[256, 256],
                           augmentation=True,
                           collapse_length=2,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     gt_idx, gt_k, gt_flip, gt_angle = 1, 1, False, 0
     gt_box, gt_seq_length = np.array([0, 0, 260, 346]), 2
     events, timestamps, images, aug_params = dataset.__getitem__(
@@ -261,8 +256,7 @@ def test_dataloader():
                           shape=[260, 346],
                           augmentation=False,
                           collapse_length=1,
-                          is_raw=True,
-                          return_aug=True)
+                          is_raw=True)
     data_loader = torch.utils.data.DataLoader(dataset,
                                               collate_fn=collate_wrapper,
                                               batch_size=2,

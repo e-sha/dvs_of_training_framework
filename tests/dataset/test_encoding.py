@@ -34,7 +34,16 @@ class TestDatasetEncoding:
                                        dtype=torch.long),
             'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
                                    dtype=torch.float32).view(-1, 1, 1, 1)
-                                                       .tile(1, 1, 10, 10)}
+                                                       .tile(1, 1, 10, 10),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1, 2], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1, 4], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2, 3], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 10, 10],
+                                     [0, 1, 10, 10],
+                                     [1, 0, 10, 10]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False, True])}}
         self.encoded = {
             'events': {'x': torch.tensor([1, 2, 2, 1, 4, 6, 7],
                                          dtype=torch.short),
@@ -55,7 +64,16 @@ class TestDatasetEncoding:
                                        dtype=torch.float32),
             'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
                                    dtype=torch.uint8).view(-1, 1, 1, 1)
-                                                     .tile(1, 1, 10, 10)}
+                                                     .tile(1, 1, 10, 10),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1, 2], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1, 4], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2, 3], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 10, 10],
+                                     [0, 1, 10, 10],
+                                     [1, 0, 10, 10]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False, True])}}
 
         self.encoded_parts = [
             {'events': {'x': torch.tensor([1, 2, 2, 1],
@@ -74,7 +92,15 @@ class TestDatasetEncoding:
                                         dtype=torch.float32),
              'images': torch.tensor([0, 1, 2, 3, 4],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
-                                                      .tile(1, 1, 10, 10)},
+                                                      .tile(1, 1, 10, 10),
+             'augmentation_params': {
+                 'idx': torch.tensor([0, 1], dtype=torch.long),
+                 'sequence_length': torch.tensor([2, 1], dtype=torch.short),
+                 'collapse_length': torch.tensor([1, 2], dtype=torch.short),
+                 'box': torch.tensor([[0, 0, 10, 10],
+                                      [0, 1, 10, 10]], dtype=torch.long),
+                 'angle': torch.tensor([0.1, 0.2], dtype=torch.float32),
+                 'is_flip': torch.tensor([True, False])}},
             {'events': {'x': torch.tensor([4, 6, 7],
                                           dtype=torch.short),
                         'y': torch.tensor([1, 6, 8],
@@ -90,14 +116,22 @@ class TestDatasetEncoding:
                                         dtype=torch.float32),
              'images': torch.tensor([5, 6, 7, 8],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
-                                                      .tile(1, 1, 10, 10)}
+                                                      .tile(1, 1, 10, 10),
+             'augmentation_params': {
+                 'idx': torch.tensor([2], dtype=torch.long),
+                 'sequence_length': torch.tensor([4], dtype=torch.short),
+                 'collapse_length': torch.tensor([3], dtype=torch.short),
+                 'box': torch.tensor([[1, 0, 10, 10]], dtype=torch.long),
+                 'angle': torch.tensor([0.3], dtype=torch.float32),
+                 'is_flip': torch.tensor([True])}}
             ]
 
     def test_encode(self):
         encoded = encode_batch(**self.decoded)
         encoded = {'events': encoded[0],
                    'timestamps': encoded[1],
-                   'images': encoded[2]}
+                   'images': encoded[2],
+                   'augmentation_params': encoded[3]}
         compare(encoded, self.encoded)
 
     def test_decoded(self):
@@ -105,7 +139,8 @@ class TestDatasetEncoding:
         decoded = {'events': decoded[0],
                    'timestamps': decoded[1],
                    'sample_idx': decoded[2],
-                   'images': decoded[3]}
+                   'images': decoded[3],
+                   'augmentation_params': decoded[4]}
         compare(decoded, self.decoded)
 
     def test_join(self):

@@ -11,6 +11,9 @@ from .data import EventCrop, ImageRandomCrop
 from .data import RandomRotation, ImageCentralCrop
 
 
+Augmentation_t = typing.Dict[str, torch.Tensor]
+
+
 def read_info(filename):
     with h5py.File(filename, 'r') as f:
         sets = list(map(lambda x: x.decode(), f['set_name']))
@@ -24,10 +27,11 @@ def join_batches(batches: typing.List[typing.Dict]):
     Args:
         batches:
             List of encoded batches. Each batch is a dict with keys
-            (events, timestamps, images)
+            (events, timestamps, images, augmentation_params).
 
     Returns:
-        A joined batch as a dict with keys (events, timestamps, images)
+        A joined batch as a dict with keys
+        (events, timestamps, images, augmentation_params).
     """
 
     if len(batches) == 0:
@@ -40,13 +44,18 @@ def join_batches(batches: typing.List[typing.Dict]):
                            'elements_per_sample':
                            torch.tensor([], dtype=torch.short)},
                 'timestamps': torch.tensor([], dtype=torch.float32),
-                'images': torch.tensor([], dtype=torch.uint8)}
+                'images': torch.tensor([], dtype=torch.uint8),
+                'augmentation_params': {}}
     result = {}
     for k in batches[0].keys():
         if isinstance(batches[0][k], dict):
             result[k] = {}
             for sk in batches[0][k].keys():
                 result[k][sk] = torch.cat([el[k][sk] for el in batches])
+        elif batches[0][k] is None:
+            assert k == 'augmentation_params'
+            assert all([el[k] is None for el in batches])
+            result[k] = None
         else:
             assert isinstance(batches[0][k], torch.Tensor)
             result[k] = torch.cat([el[k] for el in batches])
@@ -56,7 +65,8 @@ def join_batches(batches: typing.List[typing.Dict]):
 def encode_batch(events: torch.Tensor,
                  timestamps: torch.Tensor,
                  sample_idx: torch.Tensor,
-                 images: torch.Tensor):
+                 images: torch.Tensor,
+                 augmentation_params: Augmentation_t):
     """Encodes a batch to decrease storage space
 
     Args:
@@ -68,9 +78,11 @@ def encode_batch(events: torch.Tensor,
             Sample indices of the timestamps and images
         images:
             Images at the given timestamps
+        augmentation_params:
+            Augmentation parameters as a dictionary
 
     Returns:
-        A tuple of (events, timestamps, images).
+        A tuple of (events, timestamps, images, augmentation_params).
         events is a dictionary with keys
         (x, y, timestamp, polarity, events_per_element, elements_per_sample),
         where events.x is one-dimensional tensor of x coordinates as
@@ -84,9 +96,10 @@ def encode_batch(events: torch.Tensor,
         events.elements_per_sample is a one-dimensional short tensor
         representing a number of elements in each sample;
         timestamps is one-dimensional float tensor representing
-        timestamps of images
-        sample_idx is one-dimensional short tensor representing
-        images is a uint8 tensor representing images
+        timestamps of images;
+        sample_idx is one-dimensional short tensor representing;
+        images is a uint8 tensor representing images;
+        augmentation_params is dictionary of augmentation parameters.
     """
     x = events[:, 0].to(torch.short)
     y = events[:, 1].to(torch.short)
@@ -112,12 +125,13 @@ def encode_batch(events: torch.Tensor,
     return {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
             'events_per_element': events_per_element,
             'elements_per_sample': elements_per_sample}, \
-        timestamps, images.to(torch.uint8)
+        timestamps, images.to(torch.uint8), augmentation_params
 
 
 def decode_batch(events: dict,
                  timestamps: torch.Tensor,
-                 images: torch.Tensor):
+                 images: torch.Tensor,
+                 augmentation_params: typing.Optional[Augmentation_t]):
     """Decodes a batch of encoded images
 
     Args:
@@ -128,9 +142,12 @@ def decode_batch(events: dict,
             Timestamps of images
         images:
             Array of images
+        augmentation_params:
+            Augmentation parameters as a dictionary
 
     Returns:
-        Batch of data as a tuple of (events, timestamps, sample_idx, images)
+        Batch of data as a tuple of
+        (events, timestamps, sample_idx, images, augmentation_params)
     """
     polarity = events['polarity'].view(-1, 1).to(torch.float32) * 2 - 1
     sample_idx = torch.cat([
@@ -164,7 +181,7 @@ def decode_batch(events: dict,
                             element_index.view(-1, 1),
                             sample_index.view(-1, 1)], dim=1)
     return out_events, timestamps.to(torch.float32), \
-        sample_idx, images.to(torch.float32)
+        sample_idx, images.to(torch.float32), augmentation_params
 
 
 class IterableDataset(torch.utils.data.IterableDataset):
@@ -227,7 +244,6 @@ class DatasetImpl:
                  max_seq_length=1,   # maximum number of expected OF
                                      # predictions per sample
                  is_static_seq_length=True,
-                 return_aug=False,  # does return augmentation parameters
                  is_raw=True,  # does return raw events or event images
                  is_align=True,  # shift timestamps to get a 0 start timestamp
                  angle=30):  # maximum angle for rotation
@@ -240,7 +256,6 @@ class DatasetImpl:
         self.collapse_length = collapse_length
         self.max_seq_length = max_seq_length
         self.is_static_seq_length = is_static_seq_length
-        self.return_aug = return_aug
         self.is_raw = is_raw
         self.is_align = is_align
         self.angle = angle
@@ -399,17 +414,12 @@ class DatasetImpl:
                                               device='cpu',
                                               dtype=torch.float32)[0]
 
-        if self.return_aug:
-            box = np.array(box, dtype=int)
-            is_flip = np.array([is_flip], dtype=bool)
-            return (samples,
-                    image_ts,
-                    images,
-                    (idx, seq_length, k, box, angle, is_flip))
-        else:
-            return (samples,
-                    image_ts,
-                    images)  # add channel dimension
+        box = np.array(box, dtype=int)
+        is_flip = np.array([is_flip], dtype=bool)
+        return (samples,
+                image_ts,
+                images,
+                (idx, seq_length, k, box, angle, is_flip))
 
 
 def add_sample_index(events, i):
@@ -445,8 +455,10 @@ def collate_wrapper(batch):
         box = np.vstack([x[3].reshape(1, -1) for x in augmentation_params])
         angle = np.array([x[4] for x in augmentation_params])
         is_flip = np.array([x[5] for x in augmentation_params])
-        add_info = (tuple(map(to_tensor,
-                              (idx, seq_length, k, box, angle, is_flip))), )
+        info_dict = {'idx': idx, 'sequence_length': seq_length,
+                     'collapse_length': k, 'box': box, 'angle': angle,
+                     'is_flip': is_flip}
+        add_info = ({k: to_tensor(v) for k, v in info_dict.items()}, )
 
     return tuple(map(to_tensor, (events,
                                  timestamps,
