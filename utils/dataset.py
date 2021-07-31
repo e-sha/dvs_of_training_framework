@@ -62,12 +62,12 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
                        'y': {'begin': events_begin,
                              'end': events_end},
                        'timestamp': {'begin': events_begin,
-                             'end': events_end},
+                                     'end': events_end},
                        'polarity': {'begin': events_begin,
-                             'end': events_end},
+                                    'end': events_end},
                        'events_per_element': {
                            'begin': events_per_element_begin,
-                            'end': events_per_element_end},
+                           'end': events_per_element_end},
                        'elements_per_sample': {'begin': sample_begin,
                                                'end': sample_end}},
             'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
@@ -79,7 +79,6 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
                 'box': {'begin': sample_begin, 'end': sample_end},
                 'angle': {'begin': sample_begin, 'end': sample_end},
                 'is_flip': {'begin': sample_begin, 'end': sample_end}}}
-
 
 
 def join_batches(batches: typing.List[typing.Dict]):
@@ -243,6 +242,74 @@ def decode_batch(events: dict,
                             sample_index.view(-1, 1)], dim=1)
     return out_events, timestamps.to(torch.float32), \
         sample_idx, images.to(torch.float32), augmentation_params
+
+
+def write_encoded_batch(path: Path,
+                        batch: typing.Dict):
+    """Writes encoded batch to a file in hdf5 file
+
+    Args:
+        path:
+            A file path to write
+        batch:
+            Same as an output of encode_batch
+    """
+    def write_element(descriptor, data, name):
+        if isinstance(data, torch.Tensor):
+            descriptor.create_dataset(name, data=data)
+            return
+        assert isinstance(data, dict), name
+        subgroup = descriptor.create_group(name)
+        for k, v in data.items():
+            write_element(subgroup, v, k)
+
+    with h5py.File(path, 'w') as f:
+        for k, v in batch.items():
+            write_element(f, v, k)
+
+
+def read_encoded_batch(descriptor: h5py.File,
+                       events_per_element: torch.Tensor,
+                       elements_per_sample: torch.Tensor,
+                       sample_begin: int,
+                       sample_end):
+    """Reads batch of encoded samples in range [sample_begin, sample_end).
+
+    Args:
+        descriptor:
+            A descriptor of an open hdf5 file with samples.
+        events_per_element:
+            Same as in select_encoded_ranges.
+        elements_per_sample:
+            Same as in select_encoded_ranges.
+        sample_begin:
+            Same as in select_encoded_ranges.
+        sample_end:
+            Same as in select_encoded_ranges.
+
+    Returns:
+        An encoded batch of samples from sample_begin to sample_end-1.
+    """
+    def is_final(element):
+        assert isinstance(element, dict)
+        return 'begin' in element and isinstance(element['begin'], int) and \
+               'end' in element and isinstance(element['end'], int)
+
+    def read_data(descriptor, ranges):
+        assert isinstance(ranges, dict)
+        result = {}
+        for k, v in ranges.items():
+            if is_final(v):
+                result[k] = torch.tensor(descriptor[k][v['begin']:v['end']])
+            else:
+                result[k] = read_data(descriptor[k], v)
+        return result
+
+    ranges = select_encoded_ranges(events_per_element,
+                                   elements_per_sample,
+                                   sample_begin,
+                                   sample_end)
+    return read_data(descriptor, ranges)
 
 
 class IterableDataset(torch.utils.data.IterableDataset):
