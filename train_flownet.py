@@ -92,7 +92,6 @@ def get_common_dataset_params(args):
                            shape=get_resolution(args),
                            batch_size=args.mbs,
                            pin_memory=True,
-                           return_aug=False,
                            num_workers=args.num_workers)
 
 
@@ -121,8 +120,7 @@ def get_dataset(params):
               'shape': params.shape,
               'augmentation': params.augmentation,
               'collapse_length': params.collapse_length,
-              'is_raw': params.is_raw,
-              'return_aug': params.return_aug}
+              'is_raw': params.is_raw}
     if params.infinite:
         return IterableDataset(shuffle=params.shuffle, **kwargs)
     return Dataset(**kwargs)

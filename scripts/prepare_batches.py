@@ -1,4 +1,3 @@
-import h5py
 import sys
 from tqdm import tqdm
 
@@ -15,41 +14,29 @@ except ImportError:
 
 try:
     from train_flownet import get_dataloader, parse_args
-    from utils.dataset import encode_batch
+    from utils.dataset import encode_batch, write_encoded_batch, join_batches
 except ImportError:
     raise
 
 
 def main(args):
-    dataset_params = get_trainset_params(args)
-    dataset_params.return_aug = True
-    loader = get_dataloader(dataset_params)
-    print(loader.dataset._dataset.return_aug)
+    loader = get_dataloader(get_trainset_params(args))
     dataset_name = f'{loader.dataset._dataset.path.name}_preprocessed'
     out_path = args.data_path/dataset_name
     out_path.mkdir(exist_ok=True)
     num_steps = args.accum_step * args.training_steps
+    encoded_batches = []
+    num_batches_per_write = 500
     j = 0
     for i, (events, timestamps, sample_idx, images, augmentation_params) \
             in tqdm(enumerate(loader), total=num_steps):
-        events, timestamps, images, augmentation_params = encode_batch(
-                events, timestamps, sample_idx, images, augmentation_params)
-        with h5py.File(out_path/f'{j}.hdf5', 'w') as f:
-            event_group = f.create_group('events')
-            event_group.create_dataset('x', data=events['x'])
-            event_group.create_dataset('y', data=events['y'])
-            event_group.create_dataset('timestamp', data=events['timestamp'])
-            event_group.create_dataset('polarity', data=events['polarity'])
-            event_group.create_dataset('events_per_element',
-                                       data=events['events_per_element'])
-            event_group.create_dataset('elements_per_sample',
-                                       data=events['elements_per_sample'])
-            f.create_dataset('timestamps', data=timestamps)
-            f.create_dataset('images', data=images)
-            augmentation_group = f.create_group('augmentation')
-            for k, v in augmentation_params.items():
-                augmentation_group.create_dataset(k, data=v)
-        j += 1
+        encoded_batches.append(encode_batch(events, timestamps, sample_idx,
+                                            images, augmentation_params))
+        if (i + 1) % num_batches_per_write == 0:
+            joined_batches = join_batches(encoded_batches)
+            write_encoded_batch(out_path/f'{j}.hdf5', joined_batches)
+            j += 1
+            encoded_batches = []
         if i + 1 == num_steps:
             break
 
