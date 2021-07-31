@@ -1,11 +1,16 @@
 import torch
 from utils.dataset import encode_batch, decode_batch, join_batches
+from utils.dataset import select_encoded_ranges
 
 
 def compare(computed, groundtruth, prefix=''):
     if isinstance(computed, torch.Tensor):
         assert isinstance(groundtruth, torch.Tensor), prefix
         assert torch.equal(computed, groundtruth), prefix
+        return
+    if isinstance(computed, int):
+        assert isinstance(groundtruth, int), prefix
+        assert computed == groundtruth
         return
     assert isinstance(computed, dict) and isinstance(groundtruth, dict),\
         prefix
@@ -146,3 +151,134 @@ class TestDatasetEncoding:
     def test_join(self):
         joined = join_batches(self.encoded_parts)
         compare(joined, self.encoded)
+
+    def test_batch_selection_indices(self):
+        begin = 0
+        end = 1
+        gt = {'events': {'x': {'begin': 0, 'end': 3},
+                         'y': {'begin': 0, 'end': 3},
+                         'timestamp': {'begin': 0, 'end': 3},
+                         'polarity': {'begin': 0, 'end': 3},
+                         'events_per_element': {'begin': 0, 'end': 2},
+                         'elements_per_sample': {'begin': 0, 'end': 1}},
+             'timestamps': {'begin': 0, 'end': 3},
+             'images': {'begin': 0, 'end': 3},
+             'augmentation_params': {
+                 'idx': {'begin': 0, 'end': 1},
+                 'sequence_length': {'begin': 0, 'end': 1},
+                 'collapse_length': {'begin': 0, 'end': 1},
+                 'box': {'begin': 0, 'end': 1},
+                 'angle': {'begin': 0, 'end': 1},
+                 'is_flip': {'begin': 0, 'end': 1}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+        begin = 1
+        end = 2
+        gt = {'events': {'x': {'begin': 3, 'end': 4},
+                         'y': {'begin': 3, 'end': 4},
+                         'timestamp': {'begin': 3, 'end': 4},
+                         'polarity': {'begin': 3, 'end': 4},
+                         'events_per_element': {'begin': 2, 'end': 3},
+                         'elements_per_sample': {'begin': 1, 'end': 2}},
+             'timestamps': {'begin': 3, 'end': 5},
+             'images': {'begin': 3, 'end': 5},
+             'augmentation_params': {
+                 'idx': {'begin': 1, 'end': 2},
+                 'sequence_length': {'begin': 1, 'end': 2},
+                 'collapse_length': {'begin': 1, 'end': 2},
+                 'box': {'begin': 1, 'end': 2},
+                 'angle': {'begin': 1, 'end': 2},
+                 'is_flip': {'begin': 1, 'end': 2}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+        begin = 2
+        end = 3
+        gt = {'events': {'x': {'begin': 4, 'end': 7},
+                         'y': {'begin': 4, 'end': 7},
+                         'timestamp': {'begin': 4, 'end': 7},
+                         'polarity': {'begin': 4, 'end': 7},
+                         'events_per_element': {'begin': 3, 'end': 7},
+                         'elements_per_sample': {'begin': 2, 'end': 3}},
+             'timestamps': {'begin': 5, 'end': 10},
+             'images': {'begin': 5, 'end': 10},
+             'augmentation_params': {
+                 'idx': {'begin': 2, 'end': 3},
+                 'sequence_length': {'begin': 2, 'end': 3},
+                 'collapse_length': {'begin': 2, 'end': 3},
+                 'box': {'begin': 2, 'end': 3},
+                 'angle': {'begin': 2, 'end': 3},
+                 'is_flip': {'begin': 2, 'end': 3}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+        begin = 0
+        end = 2
+        gt = {'events': {'x': {'begin': 0, 'end': 4},
+                         'y': {'begin': 0, 'end': 4},
+                         'timestamp': {'begin': 0, 'end': 4},
+                         'polarity': {'begin': 0, 'end': 4},
+                         'events_per_element': {'begin': 0, 'end': 3},
+                         'elements_per_sample': {'begin': 0, 'end': 2}},
+             'timestamps': {'begin': 0, 'end': 5},
+             'images': {'begin': 0, 'end': 5},
+             'augmentation_params': {
+                 'idx': {'begin': 0, 'end': 2},
+                 'sequence_length': {'begin': 0, 'end': 2},
+                 'collapse_length': {'begin': 0, 'end': 2},
+                 'box': {'begin': 0, 'end': 2},
+                 'angle': {'begin': 0, 'end': 2},
+                 'is_flip': {'begin': 0, 'end': 2}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+        begin = 1
+        end = 3
+        gt = {'events': {'x': {'begin': 3, 'end': 7},
+                         'y': {'begin': 3, 'end': 7},
+                         'timestamp': {'begin': 3, 'end': 7},
+                         'polarity': {'begin': 3, 'end': 7},
+                         'events_per_element': {'begin': 2, 'end': 7},
+                         'elements_per_sample': {'begin': 1, 'end': 3}},
+             'timestamps': {'begin': 3, 'end': 10},
+             'images': {'begin': 3, 'end': 10},
+             'augmentation_params': {
+                 'idx': {'begin': 1, 'end': 3},
+                 'sequence_length': {'begin': 1, 'end': 3},
+                 'collapse_length': {'begin': 1, 'end': 3},
+                 'box': {'begin': 1, 'end': 3},
+                 'angle': {'begin': 1, 'end': 3},
+                 'is_flip': {'begin': 1, 'end': 3}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+        begin = 0
+        end = 3
+        gt = {'events': {'x': {'begin': 0, 'end': 7},
+                         'y': {'begin': 0, 'end': 7},
+                         'timestamp': {'begin': 0, 'end': 7},
+                         'polarity': {'begin': 0, 'end': 7},
+                         'events_per_element': {'begin': 0, 'end': 7},
+                         'elements_per_sample': {'begin': 0, 'end': 3}},
+             'timestamps': {'begin': 0, 'end': 10},
+             'images': {'begin': 0, 'end': 10},
+             'augmentation_params': {
+                 'idx': {'begin': 0, 'end': 3},
+                 'sequence_length': {'begin': 0, 'end': 3},
+                 'collapse_length': {'begin': 0, 'end': 3},
+                 'box': {'begin': 0, 'end': 3},
+                 'angle': {'begin': 0, 'end': 3},
+                 'is_flip': {'begin': 0, 'end': 3}}}
+        prediction = select_encoded_ranges(
+                self.encoded['events']['events_per_element'],
+                self.encoded['events']['elements_per_sample'], begin, end)
+        compare(prediction, gt)
+
+    def test_read_prepared_batch(self):
+        assert False

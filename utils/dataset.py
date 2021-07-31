@@ -7,6 +7,7 @@ import torch.utils.data
 import typing
 
 from EV_FlowNet.net import compute_event_image
+from .common import cumsum_with_prefix
 from .data import EventCrop, ImageRandomCrop
 from .data import RandomRotation, ImageCentralCrop
 
@@ -19,6 +20,66 @@ def read_info(filename):
         sets = list(map(lambda x: x.decode(), f['set_name']))
         start_times = list(f['start_time'])
     return dict(zip(sets, start_times))
+
+
+def select_encoded_ranges(events_per_element: torch.Tensor,
+                          elements_per_sample: torch.Tensor,
+                          sample_begin: int,
+                          sample_end: int):
+    """Computes begin and end indices requred to subsed an encoded batch of
+    [sample_begin, sample_end) samples.
+
+    Args:
+        events_per_elment:
+            Number of events stored for each element.
+        elements_per_sample:
+            Number of elements in each sample.
+        sample_begin:
+            Index of the first sample in the batch.
+        sample_end:
+            Index of the next to the last sample in the batch.
+
+    Returns:
+        A dictionary of begin and end indices for each tensor in the encoded
+        samples. The result follows the structure of the encoded batch.
+        For example, begin and end indices for x coordinate of events are
+        located at ['events']['x']['begin'] and ['events']['x']['end'].
+    """
+    assert sample_end > sample_begin
+
+    events_shift = cumsum_with_prefix(events_per_element)
+    elements_shift = cumsum_with_prefix(elements_per_sample)
+    timestamps_shift = cumsum_with_prefix(elements_per_sample + 1)
+
+    events_per_element_begin = elements_shift[sample_begin].item()
+    events_per_element_end = elements_shift[sample_end].item()
+    events_begin = events_shift[events_per_element_begin].item()
+    events_end = events_shift[events_per_element_end].item()
+    timestamp_begin = timestamps_shift[sample_begin].item()
+    timestamp_end = timestamps_shift[sample_end].item()
+    return {'events': {'x': {'begin': events_begin,
+                             'end': events_end},
+                       'y': {'begin': events_begin,
+                             'end': events_end},
+                       'timestamp': {'begin': events_begin,
+                             'end': events_end},
+                       'polarity': {'begin': events_begin,
+                             'end': events_end},
+                       'events_per_element': {
+                           'begin': events_per_element_begin,
+                            'end': events_per_element_end},
+                       'elements_per_sample': {'begin': sample_begin,
+                                               'end': sample_end}},
+            'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
+            'images': {'begin': timestamp_begin, 'end': timestamp_end},
+            'augmentation_params': {
+                'idx': {'begin': sample_begin, 'end': sample_end},
+                'sequence_length': {'begin': sample_begin, 'end': sample_end},
+                'collapse_length': {'begin': sample_begin, 'end': sample_end},
+                'box': {'begin': sample_begin, 'end': sample_end},
+                'angle': {'begin': sample_begin, 'end': sample_end},
+                'is_flip': {'begin': sample_begin, 'end': sample_end}}}
+
 
 
 def join_batches(batches: typing.List[typing.Dict]):
