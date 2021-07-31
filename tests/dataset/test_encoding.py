@@ -137,14 +137,10 @@ class TestDatasetEncoding:
 
     def test_encode(self):
         encoded = encode_batch(**self.decoded)
-        encoded = {'events': encoded[0],
-                   'timestamps': encoded[1],
-                   'images': encoded[2],
-                   'augmentation_params': encoded[3]}
         compare(encoded, self.encoded)
 
     def test_decoded(self):
-        decoded = decode_batch(**self.encoded)
+        decoded = decode_batch(self.encoded)
         decoded = {'events': decoded[0],
                    'timestamps': decoded[1],
                    'sample_idx': decoded[2],

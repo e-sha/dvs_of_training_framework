@@ -142,7 +142,8 @@ def encode_batch(events: torch.Tensor,
             Augmentation parameters as a dictionary
 
     Returns:
-        A tuple of (events, timestamps, images, augmentation_params).
+        A dictionary representation of the encoded batch with keys
+        (events, timestamps, images, augmentation_params).
         events is a dictionary with keys
         (x, y, timestamp, polarity, events_per_element, elements_per_sample),
         where events.x is one-dimensional tensor of x coordinates as
@@ -182,33 +183,29 @@ def encode_batch(events: torch.Tensor,
     events_per_element = np.zeros(total_elements, dtype=np.long)
     np.add.at(events_per_element, new_e, np.ones_like(new_e))
     events_per_element = torch.tensor(events_per_element)
-    return {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
-            'events_per_element': events_per_element,
-            'elements_per_sample': elements_per_sample}, \
-        timestamps, images.to(torch.uint8), augmentation_params
+    return {'events': {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
+                       'events_per_element': events_per_element,
+                       'elements_per_sample': elements_per_sample},
+            'timestamps': timestamps, 'images': images.to(torch.uint8),
+            'augmentation_params': augmentation_params}
 
 
-def decode_batch(events: dict,
-                 timestamps: torch.Tensor,
-                 images: torch.Tensor,
-                 augmentation_params: typing.Optional[Augmentation_t]):
+def decode_batch(encoded_batch):
     """Decodes a batch of encoded images
 
     Args:
-        events:
-            Events as a dict of (x, y, timestamp, polarity, events_per_element,
-            elements_per_sample)
-        timestamps:
-            Timestamps of images
-        images:
-            Array of images
-        augmentation_params:
-            Augmentation parameters as a dictionary
+        encoded_batch:
+            A dictionary representation of the encoded batch as in
+            encode_batch.
 
     Returns:
         Batch of data as a tuple of
         (events, timestamps, sample_idx, images, augmentation_params)
     """
+    events = encoded_batch['events']
+    timestamps = encoded_batch['timestamps']
+    images = encoded_batch['images']
+    augmentation_params = encoded_batch['augmentation_params']
     polarity = events['polarity'].view(-1, 1).to(torch.float32) * 2 - 1
     sample_idx = torch.cat([
         torch.full([n.item() + 1], i, dtype=torch.long)
