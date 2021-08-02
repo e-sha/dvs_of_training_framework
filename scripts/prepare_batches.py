@@ -22,11 +22,13 @@ except ImportError:
 def main(args):
     loader = get_dataloader(get_trainset_params(args))
     dataset_name = f'{loader.dataset._dataset.path.name}_preprocessed'
-    out_path = args.data_path/dataset_name
+    (args.model/'parameters').unlink()
+    out_path = args.model/dataset_name
     out_path.mkdir(exist_ok=True)
+    written_indices = [int(f.stem) for f in out_path.glob('*.hdf5')]
     num_steps = args.accum_step * args.training_steps
     encoded_batches = []
-    num_batches_per_write = 500
+    num_batches_per_write = 64
     j = 0
     for i, (events, timestamps, sample_idx, images, augmentation_params) \
             in tqdm(enumerate(loader), total=num_steps):
@@ -34,6 +36,8 @@ def main(args):
                                             images, augmentation_params))
         if (i + 1) % num_batches_per_write == 0:
             joined_batches = join_batches(encoded_batches)
+            while j in written_indices:
+                j += 1
             write_encoded_batch(out_path/f'{j}.hdf5', joined_batches)
             j += 1
             encoded_batches = []
