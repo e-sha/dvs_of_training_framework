@@ -106,6 +106,8 @@ def join_batches(batches: typing.List[typing.Dict]):
                 'timestamps': torch.tensor([], dtype=torch.float32),
                 'images': torch.tensor([], dtype=torch.uint8),
                 'augmentation_params': {}}
+    if len(batches) == 1:
+        return batches[0]
     result = {}
     for k in batches[0].keys():
         if isinstance(batches[0][k], dict):
@@ -545,6 +547,91 @@ class DatasetImpl:
                 image_ts,
                 images,
                 (idx, seq_length, k, box, angle, is_flip))
+
+
+class PreprocessedDataloader:
+    """Dataloader that reads preprocessed data
+
+    It iterates over files with preprocessed encoded data and sequently
+    returns data.
+
+    Attributes:
+        file_index: An index of the current file to read
+        sample_index: An index of the next sample in the current file
+        batch_size: Number of samples in a batch
+        files: Files with the preprocessed datasets
+        length: Number of samples in the preprocessed dataset
+        num_samples_per_file: Number of samples in each file
+    """
+
+    def __init__(self,
+                 path: Path,
+                 batch_size: int):
+        """Inits PreprocessedDataloader with path to preprocessed dataset
+        and batch size
+
+        Args:
+            path:
+                A path to the preprocessed dataset
+            batch_size:
+                Number of samples per batch
+        """
+        self.batch_size = batch_size
+        self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.name))
+        self.file_index = 0
+        self.sample_index = 0
+        self.num_samples_per_file = []
+        for file in self.files:
+            with h5py.File(file, 'r') as f:
+                self.num_samples_per_file.append(len(
+                    f['events']['elements_per_sample']))
+        self.length = sum(self.num_samples_per_file)
+
+    def set_index(self, idx):
+        """Moves sample iterator to the specified index
+
+        Args:
+            idx:
+                An index of the sample to start
+        """
+        idx = idx % self.length
+        cs = torch.cumsum(self.num_samples_per_file, 0)
+        self.file_index = torch.searchsorted(cs, idx)
+        self.sample_index = idx if self.file_index == 0 \
+            else idx - cs[self.file_index - 1]
+
+    def __len__(self):
+        """Returns number of samples in the preprocessed dataset"""
+        return self.length
+
+    def __iter__(self):
+        """Returns an iterator over the dataset"""
+        return self
+
+    def __next__(self):
+        """Returns the next batch"""
+        num2read = self.batch_size
+        batches = []
+        while num2read > 0:
+            left = self.num_samples_per_file[self.file_index] - \
+                    self.sample_index
+            cur_num2read = min(left, num2read)
+            with h5py.File(self.files[self.file_index], 'r') as f:
+                events_per_element = torch.tensor(
+                        f['events']['events_per_element'])
+                elements_per_sample = torch.tensor(
+                        f['events']['elements_per_sample'])
+                batches.append(read_encoded_batch(f, events_per_element,
+                                                  elements_per_sample,
+                                                  self.sample_idx,
+                                                  self.sample_idx +
+                                                  cur_num2read))
+            num2read -= cur_num2read
+            if num2read > 0:
+                self.file_index = (self.file_index + 1) % len(self.files)
+                self.sample_index = 0
+        encoded_batch = join_batches(batches)
+        return decode_batch(encoded_batch)
 
 
 def add_sample_index(events, i):
