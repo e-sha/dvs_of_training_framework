@@ -231,8 +231,6 @@ def decode_batch(encoded_batch):
         sample_index.append(torch.full([num_events], i, dtype=torch.float32))
     element_index = torch.cat(element_index)
     sample_index = torch.cat(sample_index)
-    print(element_index)
-    print(sample_index)
     out_events = torch.cat([events['x'].view(-1, 1).to(torch.float32),
                             events['y'].view(-1, 1).to(torch.float32),
                             events['timestamp'].view(-1, 1),
@@ -577,7 +575,7 @@ class PreprocessedDataloader:
                 Number of samples per batch
         """
         self.batch_size = batch_size
-        self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.name))
+        self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
         self.file_index = 0
         self.sample_index = 0
         self.num_samples_per_file = []
@@ -595,7 +593,7 @@ class PreprocessedDataloader:
                 An index of the sample to start
         """
         idx = idx % self.length
-        cs = torch.cumsum(self.num_samples_per_file, 0)
+        cs = torch.cumsum(torch.tensor(self.num_samples_per_file), 0)
         self.file_index = torch.searchsorted(cs, idx)
         self.sample_index = idx if self.file_index == 0 \
             else idx - cs[self.file_index - 1]
@@ -621,11 +619,12 @@ class PreprocessedDataloader:
                         f['events']['events_per_element'])
                 elements_per_sample = torch.tensor(
                         f['events']['elements_per_sample'])
+                next_sample_index = self.sample_index + cur_num2read
                 batches.append(read_encoded_batch(f, events_per_element,
                                                   elements_per_sample,
-                                                  self.sample_idx,
-                                                  self.sample_idx +
-                                                  cur_num2read))
+                                                  self.sample_index,
+                                                  next_sample_index))
+            self.sample_index = next_sample_index
             num2read -= cur_num2read
             if num2read > 0:
                 self.file_index = (self.file_index + 1) % len(self.files)

@@ -1,10 +1,11 @@
 import h5py
+from pathlib import Path
 import tempfile
 import torch
 
 from utils.dataset import encode_batch, decode_batch, join_batches
 from utils.dataset import select_encoded_ranges, read_encoded_batch
-from utils.dataset import write_encoded_batch
+from utils.dataset import write_encoded_batch, PreprocessedDataloader
 
 
 def compare(computed, groundtruth, prefix=''):
@@ -16,6 +17,10 @@ def compare(computed, groundtruth, prefix=''):
         assert isinstance(groundtruth, int), prefix
         assert computed == groundtruth
         return
+    if isinstance(computed, tuple):
+        assert isinstance(groundtruth, tuple)
+        computed = {f'{i}': v for i, v in enumerate(computed)}
+        groundtruth = {f'{i}': v for i, v in enumerate(groundtruth)}
     assert isinstance(computed, dict) and isinstance(groundtruth, dict),\
         prefix
     assert len(computed) == len(groundtruth),\
@@ -299,4 +304,28 @@ class TestDatasetEncoding:
                 torch.tensor(f['events']['events_per_element'])
             batch = read_encoded_batch(f, events_per_element,
                                        elements_per_sample, 2, 3)
+        Path(filename).unlink()
         compare(batch, self.encoded_parts[1])
+
+    def test_preprocessed_dataloader(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            dirname = Path(dirname)
+            for i, part in enumerate(self.encoded_parts):
+                write_encoded_batch(dirname/f'{i}.hdf5', part)
+            dataloader = PreprocessedDataloader(dirname, 2)
+            batch = next(dataloader)
+            compare(batch, decode_batch(self.encoded_parts[0]))
+
+            dataloader = PreprocessedDataloader(dirname, 1)
+            dataloader.set_index(2)
+            batch = next(dataloader)
+            compare(batch, decode_batch(self.encoded_parts[1]))
+
+            dataloader = PreprocessedDataloader(dirname, 3)
+            batch = next(dataloader)
+            compare(batch, self.decoded)
+
+            dataloader = PreprocessedDataloader(dirname, 5)
+            batch = next(dataloader)
+            compare(batch, decode_batch(join_batches(
+                self.encoded_parts + self.encoded_parts[0])))
