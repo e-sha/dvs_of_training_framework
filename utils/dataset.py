@@ -618,13 +618,13 @@ class PreprocessedDataloader:
             left = self.num_samples_per_file[self.file_index] - \
                     self.sample_index
             cur_num2read = min(left, num2read)
+            next_sample_index = self.sample_index + cur_num2read
             if cur_num2read > 0:
                 with h5py.File(self.files[self.file_index], 'r') as f:
                     events_per_element = torch.tensor(
                             f['events']['events_per_element'])
                     elements_per_sample = torch.tensor(
                             f['events']['elements_per_sample'])
-                    next_sample_index = self.sample_index + cur_num2read
                     batches.append(read_encoded_batch(f, events_per_element,
                                                       elements_per_sample,
                                                       self.sample_index,

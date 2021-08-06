@@ -186,7 +186,7 @@ def add_train_arguments(parser):
                         dest='do_not_continue',
                         action='store_true')
     parser.add_argument('--preprocessed-dataset',
-                        help='Use preprocessed dataset instead of ' \
+                        help='Use preprocessed dataset instead of '
                              'augmenting data on a fly',
                         dest='preprocessed_dataset',
                         action='store_true')

@@ -13,6 +13,8 @@ import yaml
 
 from utils.dataset import Dataset, IterableDataset, collate_wrapper
 from utils.dataset import PreprocessedDataloader
+from utils.hooks.validation import ValidationHook
+from utils.hooks.serialization import SerializationHook
 from utils.loss import Losses
 from utils.model import import_module, filter_kwargs
 from utils.options import add_train_arguments, options2model_kwargs
@@ -20,7 +22,7 @@ from utils.options import validate_train_args
 from utils.profiling import Profiler
 from utils.serializer import Serializer
 from utils.timer import SynchronizedWallClockTimer, FakeTimer
-from utils.training import train, validate, make_hook_periodic
+from utils.training import train, make_hook_periodic
 
 
 script_dir = Path(__file__).resolve().parent
@@ -221,21 +223,11 @@ def construct_train_tools(args, model, passed_steps=0):
 def create_hooks(args, model, optimizer, losses, logger, serializer):
     device = torch.device(args.device)
     loader = get_dataloader(get_valset_params(args))
-    hooks = {'serialization':
-             lambda steps, samples: serializer.checkpoint_model(
-                 model,
-                 optimizer,
-                 global_step=steps,
-                 samples_passed=samples),
-             'validation': lambda step, samples: validate(
-                 model,
-                 device,
-                 loader,
-                 samples,
-                 logger,
-                 losses,
-                 weights=args.loss_weights,
-                 is_raw=args.is_raw)}
+    hooks = {'serialization': SerializationHook(serializer, model, optimizer,
+                                                logger),
+             'validation': ValidationHook(model, device, loader, logger,
+                                          losses, weights=args.loss_weights,
+                                          is_raw=args.is_raw)}
     periods = {'serialization': args.checkpointing_interval,
                'validation': args.vp}
     periodic_hooks = {k: make_hook_periodic(hooks[k], periods[k])
@@ -279,7 +271,10 @@ def main():
                          device,
                          timers=timers)
 
-    logger = SummaryWriter(str(args.log_path))
+    # allow only manual flush
+    logger = SummaryWriter(str(args.log_path),
+                           max_queue=100000000,
+                           flush_secs=100000000)
 
     periodic_hooks, hooks = create_hooks(args,
                                          model,
