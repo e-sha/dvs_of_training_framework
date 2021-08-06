@@ -323,9 +323,9 @@ class TestDatasetEncoding:
 
             dataloader = PreprocessedDataloader(dirname, 3)
             batch = next(dataloader)
-            compare(batch, self.decoded)
+            compare(batch, decode_batch(join_batches(self.encoded_parts)))
 
             dataloader = PreprocessedDataloader(dirname, 5)
             batch = next(dataloader)
             compare(batch, decode_batch(join_batches(
-                self.encoded_parts + self.encoded_parts[0])))
+                self.encoded_parts + [self.encoded_parts[0]])))

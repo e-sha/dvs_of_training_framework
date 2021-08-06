@@ -45,6 +45,8 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
         For example, begin and end indices for x coordinate of events are
         located at ['events']['x']['begin'] and ['events']['x']['end'].
     """
+    assert isinstance(sample_begin, int)
+    assert isinstance(sample_end, int)
     assert sample_end > sample_begin
 
     events_shift = cumsum_with_prefix(events_per_element)
@@ -288,7 +290,7 @@ def read_encoded_batch(descriptor: h5py.File,
         An encoded batch of samples from sample_begin to sample_end-1.
     """
     def is_final(element):
-        assert isinstance(element, dict)
+        assert isinstance(element, dict), element
         return 'begin' in element and isinstance(element['begin'], int) and \
                'end' in element and isinstance(element['end'], int)
 
@@ -299,6 +301,7 @@ def read_encoded_batch(descriptor: h5py.File,
             if is_final(v):
                 result[k] = torch.tensor(descriptor[k][v['begin']:v['end']])
             else:
+                print(descriptor[k], v)
                 result[k] = read_data(descriptor[k], v)
         return result
 
@@ -585,7 +588,8 @@ class PreprocessedDataloader:
                     f['events']['elements_per_sample']))
         self.length = sum(self.num_samples_per_file)
 
-    def set_index(self, idx):
+    def set_index(self,
+                  idx: int):
         """Moves sample iterator to the specified index
 
         Args:
@@ -594,9 +598,10 @@ class PreprocessedDataloader:
         """
         idx = idx % self.length
         cs = torch.cumsum(torch.tensor(self.num_samples_per_file), 0)
-        self.file_index = torch.searchsorted(cs, idx)
+        # cs[i-1] <= idx < cs[i]
+        self.file_index = torch.searchsorted(cs, idx + 1).item()
         self.sample_index = idx if self.file_index == 0 \
-            else idx - cs[self.file_index - 1]
+            else idx - cs[self.file_index - 1].item()
 
     def __len__(self):
         """Returns number of samples in the preprocessed dataset"""
@@ -614,16 +619,17 @@ class PreprocessedDataloader:
             left = self.num_samples_per_file[self.file_index] - \
                     self.sample_index
             cur_num2read = min(left, num2read)
-            with h5py.File(self.files[self.file_index], 'r') as f:
-                events_per_element = torch.tensor(
-                        f['events']['events_per_element'])
-                elements_per_sample = torch.tensor(
-                        f['events']['elements_per_sample'])
-                next_sample_index = self.sample_index + cur_num2read
-                batches.append(read_encoded_batch(f, events_per_element,
-                                                  elements_per_sample,
-                                                  self.sample_index,
-                                                  next_sample_index))
+            if cur_num2read > 0:
+                with h5py.File(self.files[self.file_index], 'r') as f:
+                    events_per_element = torch.tensor(
+                            f['events']['events_per_element'])
+                    elements_per_sample = torch.tensor(
+                            f['events']['elements_per_sample'])
+                    next_sample_index = self.sample_index + cur_num2read
+                    batches.append(read_encoded_batch(f, events_per_element,
+                                                      elements_per_sample,
+                                                      self.sample_index,
+                                                      next_sample_index))
             self.sample_index = next_sample_index
             num2read -= cur_num2read
             if num2read > 0:
