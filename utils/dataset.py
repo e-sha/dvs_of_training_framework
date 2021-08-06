@@ -301,7 +301,6 @@ def read_encoded_batch(descriptor: h5py.File,
             if is_final(v):
                 result[k] = torch.tensor(descriptor[k][v['begin']:v['end']])
             else:
-                print(descriptor[k], v)
                 result[k] = read_data(descriptor[k], v)
         return result
 

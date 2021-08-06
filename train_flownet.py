@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import yaml
 
 from utils.dataset import Dataset, IterableDataset, collate_wrapper
+from utils.dataset import PreprocessedDataloader
 from utils.loss import Losses
 from utils.model import import_module, filter_kwargs
 from utils.options import add_train_arguments, options2model_kwargs
@@ -102,6 +103,7 @@ def get_trainset_params(args):
     params.collapse_length = args.cl
     params.shuffle = True
     params.infinite = True
+    params.preprocessed_dataset = args.preprocessed_dataset
     return params
 
 
@@ -112,6 +114,7 @@ def get_valset_params(args):
     params.collapse_length = 1
     params.shuffle = False
     params.infinite = False
+    params.preprocessed_dataset = False
     return params
 
 
@@ -127,9 +130,13 @@ def get_dataset(params):
 
 
 def get_dataloader(params):
-    if params.infinite:
-        loader_kwargs = {}
-    else:
+    if params.preprocessed_dataset:
+        path = params.path.parent / (params.path.name + '_preprocessed')
+        return PreprocessedDataloader(
+            path=path,
+            batch_size=params.batch_size)
+    loader_kwargs = {}
+    if not params.infinite:
         loader_kwargs['shuffle'] = params.shuffle
     return torch.utils.data.DataLoader(get_dataset(params),
                                        collate_fn=params.collate_fn,
