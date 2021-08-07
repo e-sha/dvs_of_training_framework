@@ -17,6 +17,7 @@ from utils.hooks.validation import ValidationHook
 from utils.hooks.serialization import SerializationHook
 from utils.loss import Losses
 from utils.model import import_module, filter_kwargs
+from utils.monitors.gpumonitor import GPUMonitor
 from utils.options import add_train_arguments, options2model_kwargs
 from utils.options import validate_train_args
 from utils.profiling import Profiler
@@ -296,7 +297,8 @@ def main():
 
     hooks['validation'](global_step, samples_passed)
 
-    with Profiler(args.profiling, args.model/'profiling'):
+    with Profiler(args.profiling, args.model/'profiling'), \
+            GPUMonitor(args.log_path):
         train(model,
               device,
               loader,
