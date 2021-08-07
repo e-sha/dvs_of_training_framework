@@ -16,6 +16,7 @@ def monitor(path: Path,
             Period of writting information.
     """
     logger = SummaryWriter(str(path))
+    k = 0
     while True:
         monitors = GpuUtils.analyzeSystem(pandas_format=False)
         if len(monitors['gpu_index']) == 0:
@@ -26,10 +27,13 @@ def monitor(path: Path,
                        monitors['utilizations'],
                        monitors['available_memories_in_mb'],
                        monitors['memory_usage_percentage']):
-            logger.add_scalars(f'Monitoring/GPU{i}',
-                               {'utilization': utilization,
-                                'MB left': memory_available,
-                                'memory utilization': memory_utilization})
+            logger.add_scalar(f'Monitoring/GPU{i}/utilization',
+                              utilization, k)
+            logger.add_scalar(f'Monitoring/GPU{i}/MB left',
+                              memory_available, k)
+            logger.add_scalar(f'Monitoring/GPU{i}/memory utilization',
+                              memory_utilization, k)
+            k += 1
         time.sleep(period)
 
 
