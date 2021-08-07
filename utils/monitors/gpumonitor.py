@@ -26,10 +26,10 @@ def monitor(path: Path,
                        monitors['utilizations'],
                        monitors['available_memories_in_mb'],
                        monitors['memory_usage_percentage']):
-            logger.add_scalar(f'Monitoring/GPU{i}',
-                              {'utilization': utilization,
-                               'MB left': memory_available,
-                               'memory utilization': memory_utilization})
+            logger.add_scalars(f'Monitoring/GPU{i}',
+                               {'utilization': utilization,
+                                'MB left': memory_available,
+                                'memory utilization': memory_utilization})
         time.sleep(period)
 
 
@@ -59,6 +59,6 @@ class GPUMonitor:
         self.process = Process(target=monitor, args=(self.path, self.period))
         self.process.start()
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.process.terminate()
         self.process = None
