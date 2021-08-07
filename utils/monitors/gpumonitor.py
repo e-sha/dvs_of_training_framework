@@ -57,6 +57,7 @@ class GPUMonitor:
 
     def __enter__(self):
         self.process = Process(target=monitor, args=(self.path, self.period))
+        self.process.start()
 
     def __exit__(self):
         self.process.terminate()
