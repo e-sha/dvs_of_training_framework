@@ -190,6 +190,27 @@ def add_train_arguments(parser):
                              'augmenting data on a fly',
                         dest='preprocessed_dataset',
                         action='store_true')
+    parser.add_argument('--max-sequence-length',
+                        help='Maximum sample length in the input data',
+                        dest='max_sequence_length',
+                        default=1,
+                        type=int)
+    parser.add_argument('--prefix-length',
+                        help='Number of elements before predicted '
+                             'in each sample',
+                        dest='prefix_length',
+                        default=0,
+                        type=int)
+    parser.add_argument('--suffix-length',
+                        help='Number of elements after predicted '
+                             'in each sample',
+                        dest='suffix_length',
+                        default=0,
+                        type=int)
+    parser.add_argument('--dynamic-sample-length',
+                        help='flag of dynamic sample length usage',
+                        dest='dynamic_sample_length',
+                        action='store_true')
     return parser
 
 
@@ -205,6 +226,7 @@ def validate_train_args(args):
     assert args.bs % args.mbs == 0
     args.accum_step = args.bs // args.mbs
     assert args.permanent_interval % args.checkpointing_interval == 0
+    assert args.prefix_length + args.suffix_length < args.max_sequence_length
     return args
 
 
@@ -214,7 +236,10 @@ def validate_test_args(args):
 
 
 def options2model_kwargs(parameters):
-    kargs = dict()
+    kargs = dict(prefix_length=parameters.prefix_length,
+                 suffix_length=parameters.suffix_length,
+                 max_sequence_length=parameters.max_sequence_length,
+                 dynamic_sample_length=parameters.dynamic_sample_length)
     if parameters.mish:
         kargs['activation'] = Mish()
     else:

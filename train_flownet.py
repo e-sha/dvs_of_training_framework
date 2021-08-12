@@ -96,7 +96,9 @@ def get_common_dataset_params(args):
                            shape=get_resolution(args),
                            batch_size=args.mbs,
                            pin_memory=True,
-                           num_workers=args.num_workers)
+                           num_workers=args.num_workers,
+                           max_seq_length=args.max_sequence_length,
+                           is_static_seq_length=not args.dynamic_sample_length)
 
 
 def get_trainset_params(args):
