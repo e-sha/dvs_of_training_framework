@@ -34,7 +34,9 @@ def test_trainloop():
                                               shuffle=False)
     model = init_model(
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
-                            mish=False, sp=None),
+                            mish=False, sp=None, prefix_length=0,
+                            suffix_length=0, max_sequence_length=1,
+                            dynamic_sample_length=False),
             device=args.device)
     optimizer, scheduler = construct_train_tools(args, model)
     evaluator = Losses([tuple(map(lambda x: x // 2 ** i, shape))
@@ -71,7 +73,9 @@ def test_validation():
                                               shuffle=False)
     model = init_model(
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
-                            mish=False, sp=None),
+                            mish=False, sp=None, prefix_length=0,
+                            suffix_length=0, max_sequence_length=1,
+                            dynamic_sample_length=False),
             device=args.device)
     optimizer, scheduler = construct_train_tools(args, model)
     evaluator = Losses([tuple(map(lambda x: x // 2 ** i, shape))
