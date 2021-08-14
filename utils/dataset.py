@@ -214,12 +214,9 @@ def decode_batch(encoded_batch):
     sample_idx = torch.cat([
         torch.full([n.item() + 1], i, dtype=torch.long)
         for i, n in enumerate(events['elements_per_sample'])])
-    batch_size = events['elements_per_sample'].numel()
-    sample_shift = torch.zeros(batch_size + 1, dtype=torch.long)
-    sample_shift[1:] = torch.cumsum(events['elements_per_sample'], dim=0)
+    sample_shift = cumsum_with_prefix(events['elements_per_sample'],
+                                      dtype=torch.long)
     num_elements = events['events_per_element'].numel()
-    events_shift = torch.zeros(num_elements + 1, dtype=torch.long)
-    events_shift[1:] = torch.cumsum(events['events_per_element'], dim=0)
     element_index = []
     sample_index = []
     for i, num_elements in enumerate(events['elements_per_sample']):
