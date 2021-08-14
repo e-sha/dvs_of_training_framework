@@ -262,7 +262,7 @@ def test_dataloader():
                                               batch_size=2,
                                               pin_memory=True,
                                               shuffle=False)
-    events, timestamps, sample_idx, images, augmentation_params = \
+    events, timestamps, sample_idx, images, batch_size, augmentation_params = \
         next(iter(data_loader))
 
     with h5py.File(data_path/'000000.hdf5', 'r') as f0, \
@@ -296,3 +296,4 @@ def test_dataloader():
     print(gt_sample_idx)
     assert torch.equal(sample_idx, gt_sample_idx)
     assert (images == gt_images).all()
+    assert batch_size == 2
