@@ -673,7 +673,10 @@ def collate_wrapper(batch):
                      'is_flip': is_flip}
         add_info = ({k: to_tensor(v) for k, v in info_dict.items()}, )
 
-    return tuple(map(to_tensor, (events,
-                                 timestamps,
-                                 sample_idx,
-                                 images))) + add_info
+    events, timestamps, sample_idx, images = tuple(map(to_tensor, (events,
+                                                                   timestamps,
+                                                                   sample_idx,
+                                                                   images)))
+    return {'events': events, 'timestamps': timestamps,
+            'sample_idx': sample_idx, 'images': images,
+            'augmentation_params': add_info[0], 'size': len(batch)}

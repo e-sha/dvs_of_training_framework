@@ -38,10 +38,7 @@ def predictions2tag(predictions):
 
 
 def process_minibatch(model,
-                      events,
-                      timestamps,
-                      sample_idx,
-                      images,
+                      batch,
                       timers,
                       device,
                       is_raw,
@@ -49,9 +46,10 @@ def process_minibatch(model,
                       weights):
     timers('batch2gpu').start()
     events, timestamps, sample_idx, images = map(lambda x: x.to(device),
-                                                 (events,
-                                                  timestamps,
-                                                  sample_idx, images))
+                                                 (batch['events'],
+                                                  batch['timestamps'],
+                                                  batch['sample_idx'],
+                                                  batch['images']))
     timers('batch2gpu').stop()
     shape = images.size()[-2:]
     timers('forward').start()
@@ -118,16 +116,15 @@ def train(model,
     photo_sum = []
     out_reg_sum = []
     optimizer.zero_grad()
+    init_batch = init_step * accumulation_steps
     timers('batch_construction').start()
-    for global_step, (events, timestamps, sample_idx, images, _) \
-            in enumerate(loader, init_step * accumulation_steps):
+    for global_step, batch in enumerate(loader, init_batch):
         if global_step == num_steps * accumulation_steps:
             break
         timers('batch_construction').stop()
-        samples_passed += sample_idx[-1] + 1
+        samples_passed += batch['size']
         loss, (smoothness, photometric, out_reg), tags = process_minibatch(
-                model, events, timestamps, sample_idx, images, timers, device,
-                is_raw, evaluator, weights)
+                model, batch, timers, device, is_raw, evaluator, weights)
         loss /= accumulation_steps
         timers('backprop').start()
         loss.backward()
@@ -226,10 +223,9 @@ def validate(model, device, loader, samples_passed,
     out_reg_sum = []
     loss_sum = 0
     with torch.no_grad():
-        for events, timestamps, sample_idx, images, _ in loader:
+        for batch in loader:
             loss, (smoothness, photometric, out_reg), tags = process_minibatch(
-                    model, events, timestamps, sample_idx, images, FakeTimer(),
-                    device, is_raw, evaluator, weights)
+                model, batch, FakeTimer(), device, is_raw, evaluator, weights)
             photo_sum = add_loss(photo_sum, photometric)
             smooth_sum = add_loss(smooth_sum, smoothness)
             out_reg_sum = add_loss(out_reg_sum, out_reg)
