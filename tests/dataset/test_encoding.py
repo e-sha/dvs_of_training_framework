@@ -57,7 +57,8 @@ class TestDatasetEncoding:
                                      [0, 1, 10, 10],
                                      [1, 0, 10, 10]], dtype=torch.long),
                 'angle': torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32),
-                'is_flip': torch.tensor([True, False, True])}}
+                'is_flip': torch.tensor([True, False, True])},
+            'size': 3}
         self.encoded = {
             'events': {'x': torch.tensor([1, 2, 2, 1, 4, 6, 7],
                                          dtype=torch.short),
@@ -150,7 +151,8 @@ class TestDatasetEncoding:
                    'timestamps': decoded[1],
                    'sample_idx': decoded[2],
                    'images': decoded[3],
-                   'augmentation_params': decoded[4]}
+                   'augmentation_params': decoded[4],
+                   'size': decoded[5]}
         compare(decoded, self.decoded)
 
     def test_join(self):

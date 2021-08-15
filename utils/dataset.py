@@ -130,7 +130,8 @@ def encode_batch(events: torch.Tensor,
                  timestamps: torch.Tensor,
                  sample_idx: torch.Tensor,
                  images: torch.Tensor,
-                 augmentation_params: Augmentation_t):
+                 augmentation_params: Augmentation_t,
+                 size: int):
     """Encodes a batch to decrease storage space
 
     Args:
@@ -144,6 +145,8 @@ def encode_batch(events: torch.Tensor,
             Images at the given timestamps
         augmentation_params:
             Augmentation parameters as a dictionary
+        size:
+            A number of samples in the batch
 
     Returns:
         A dictionary representation of the encoded batch with keys
@@ -173,9 +176,7 @@ def encode_batch(events: torch.Tensor,
     e = events[:, 4].to(torch.long).numpy()
     s = events[:, 5].to(torch.short).numpy()
 
-    batch_size = sample_idx[-1].item() + 1
-
-    elements_per_sample = np.zeros(batch_size, dtype=np.short) - 1
+    elements_per_sample = np.zeros(size, dtype=np.short) - 1
     np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
     elements_per_sample = torch.tensor(elements_per_sample)
     new_e = np.zeros(e.size, dtype=np.uint8)
@@ -204,7 +205,7 @@ def decode_batch(encoded_batch):
 
     Returns:
         Batch of data as a tuple of
-        (events, timestamps, sample_idx, images, augmentation_params)
+        (events, timestamps, sample_idx, images, augmentation_params, size)
     """
     events = encoded_batch['events']
     timestamps = encoded_batch['timestamps']
@@ -214,6 +215,7 @@ def decode_batch(encoded_batch):
     sample_idx = torch.cat([
         torch.full([n.item() + 1], i, dtype=torch.long)
         for i, n in enumerate(events['elements_per_sample'])])
+    batch_size = events['elements_per_sample'].size
     sample_shift = cumsum_with_prefix(events['elements_per_sample'],
                                       dtype=torch.long)
     num_elements = events['events_per_element'].numel()
@@ -237,7 +239,7 @@ def decode_batch(encoded_batch):
                             element_index.view(-1, 1),
                             sample_index.view(-1, 1)], dim=1)
     return out_events, timestamps.to(torch.float32), \
-        sample_idx, images.to(torch.float32), augmentation_params
+        sample_idx, images.to(torch.float32), augmentation_params, batch_size
 
 
 def write_encoded_batch(path: Path,
