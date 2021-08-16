@@ -204,7 +204,7 @@ def decode_batch(encoded_batch):
             encode_batch.
 
     Returns:
-        Batch of data as a tuple of
+        Batch of data as a dict with keys
         (events, timestamps, sample_idx, images, augmentation_params, size)
     """
     events = encoded_batch['events']
@@ -238,8 +238,12 @@ def decode_batch(encoded_batch):
                             polarity,
                             element_index.view(-1, 1),
                             sample_index.view(-1, 1)], dim=1)
-    return out_events, timestamps.to(torch.float32), \
-        sample_idx, images.to(torch.float32), augmentation_params, batch_size
+    return {'events': out_events,
+            'timestamps': timestamps.to(torch.float32),
+            'sample_idx': sample_idx,
+            'images': images.to(torch.float32),
+            'augmentation_params': augmentation_params,
+            'size': batch_size}
 
 
 def write_encoded_batch(path: Path,

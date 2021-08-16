@@ -153,12 +153,6 @@ class TestDatasetEncoding:
 
     def test_decoded(self):
         decoded = decode_batch(self.encoded)
-        decoded = {'events': decoded[0],
-                   'timestamps': decoded[1],
-                   'sample_idx': decoded[2],
-                   'images': decoded[3],
-                   'augmentation_params': decoded[4],
-                   'size': decoded[5]}
         compare(decoded, self.decoded)
 
     def test_join(self):
@@ -364,7 +358,7 @@ class TestDatasetEncoding:
 
             logger = torch.utils.tensorboard.SummaryWriter(log_dir=dirname)
             train(model=model, device=args.device, loader=dataloader,
-              optimizer=optimizer, num_steps=args.training_steps,
-              scheduler=scheduler, logger=logger, evaluator=evaluator,
-              timers=FakeTimer())
+                  optimizer=optimizer, num_steps=args.training_steps,
+                  scheduler=scheduler, logger=logger, evaluator=evaluator,
+                  timers=FakeTimer())
             del logger
