@@ -4,11 +4,12 @@ import tempfile
 import torch
 from types import SimpleNamespace
 
-from tests.utils import test_path
+from tests.utils import test_path, data_path
 from train_flownet import init_model, construct_train_tools
 from utils.dataset import encode_batch, decode_batch, join_batches
 from utils.dataset import select_encoded_ranges, read_encoded_batch
 from utils.dataset import write_encoded_batch, PreprocessedDataloader
+from utils.dataset import DatasetImpl, collate_wrapper
 from utils.loss import Losses
 from utils.timer import FakeTimer
 from utils.training import train
@@ -333,6 +334,17 @@ class TestDatasetEncoding:
                 self.encoded_parts + [self.encoded_parts[0]])))
 
     def test_training_preprocessed(self):
+        shape = [256, 256]
+        dataset = DatasetImpl(path=data_path,
+                              shape=shape,
+                              augmentation=True,
+                              collapse_length=1,
+                              is_raw=True)
+        data_loader = torch.utils.data.DataLoader(dataset,
+                                                  collate_fn=collate_wrapper,
+                                                  batch_size=2,
+                                                  pin_memory=True,
+                                                  shuffle=False)
         args = SimpleNamespace(wdw=0.01,
                                training_steps=1,
                                rs=0,
@@ -340,7 +352,6 @@ class TestDatasetEncoding:
                                lr=0.01,
                                half_life=1,
                                device=torch.device('cpu'))
-        shape = [256, 256]
         model = init_model(
                 SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                                 mish=False, sp=None, prefix_length=0,
@@ -348,13 +359,14 @@ class TestDatasetEncoding:
                                 dynamic_sample_length=False),
                 device=args.device)
         optimizer, scheduler = construct_train_tools(args, model)
+        batch_size = 4
         evaluator = Losses([tuple(map(lambda x: x // 2 ** i, shape))
-                            for i in range(4)][::-1], 2, args.device)
+                            for i in range(4)][::-1], batch_size, args.device)
         with tempfile.TemporaryDirectory() as dirname:
             dirname = Path(dirname)
-            for i, part in enumerate(self.encoded_parts):
-                write_encoded_batch(dirname/f'{i}.hdf5', part)
-            dataloader = PreprocessedDataloader(dirname, 2)
+            batch = next(iter(data_loader))
+            write_encoded_batch(dirname/'0.hdf5', encode_batch(**batch))
+            dataloader = PreprocessedDataloader(dirname, batch_size)
 
             logger = torch.utils.tensorboard.SummaryWriter(log_dir=dirname)
             train(model=model, device=args.device, loader=dataloader,
