@@ -4,7 +4,7 @@ import tempfile
 import torch
 from types import SimpleNamespace
 
-from tests.utils import test_path, data_path
+from tests.utils import test_path, data_path, compare
 from train_flownet import init_model, construct_train_tools
 from utils.dataset import encode_batch, decode_batch, join_batches
 from utils.dataset import select_encoded_ranges, read_encoded_batch
@@ -13,28 +13,6 @@ from utils.dataset import DatasetImpl, collate_wrapper
 from utils.loss import Losses
 from utils.timer import FakeTimer
 from utils.training import train
-
-
-def compare(computed, groundtruth, prefix=''):
-    if isinstance(computed, torch.Tensor):
-        assert isinstance(groundtruth, torch.Tensor), prefix
-        assert torch.equal(computed, groundtruth), prefix
-        return
-    if isinstance(computed, int):
-        assert isinstance(groundtruth, int), prefix
-        assert computed == groundtruth
-        return
-    if isinstance(computed, tuple):
-        assert isinstance(groundtruth, tuple)
-        computed = {f'{i}': v for i, v in enumerate(computed)}
-        groundtruth = {f'{i}': v for i, v in enumerate(groundtruth)}
-    assert isinstance(computed, dict) and isinstance(groundtruth, dict),\
-        prefix
-    assert len(computed) == len(groundtruth),\
-        f'{prefix}: {computed.keys()} {groundtruth.keys()}'
-    for k in computed.keys():
-        assert k in groundtruth
-        compare(computed[k], groundtruth[k], prefix=prefix+f'.{k}')
 
 
 class TestDatasetEncoding:

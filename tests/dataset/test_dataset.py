@@ -1,10 +1,10 @@
 import h5py
 import numpy as np
-from tests.utils import data_path
 import torch
 
 
 from utils.dataset import Dataset, DatasetImpl, collate_wrapper
+from tests.utils import data_path, read_test_elem, concat_events, compare
 
 
 def test_read():
@@ -15,10 +15,25 @@ def test_read():
                       is_raw=True)
     assert len(dataset) > 0
     events, timestamps, images, augmentation_parameters = dataset[0]
-    assert events.shape[1] == 5, 'Events are the matrix of ' \
-                                 '5 columns [x, y, p, t, k]'
-    assert (events[:, 4] != 0).sum() == 0, 'Sample is a sequence ' \
-                                           'of 2 images'
+    assert isinstance(events, dict)
+    assert set.intersection(
+            set(events.keys()),
+            {'x', 'y', 'timestamp', 'polarity', 'element_index'})
+    assert isinstance(events['x'], np.ndarray)
+    assert isinstance(events['y'], np.ndarray)
+    assert isinstance(events['timestamp'], np.ndarray)
+    assert isinstance(events['polarity'], np.ndarray)
+    assert isinstance(events['element_index'], np.ndarray)
+    assert events['x'].dtype == np.int64
+    assert events['y'].dtype == np.int64
+    assert events['timestamp'].dtype == np.float32
+    assert events['polarity'].dtype == np.int64
+    assert events['element_index'].dtype == np.int64
+    n = events['x'].size
+    for k, v in events.items():
+        assert v.size == n, k
+    assert (events['element_index'] != 0).sum() == 0, 'Sample is a sequence ' \
+                                                      'of more than 1 element'
     assert images.ndim == 3
     assert images.shape == (2, 256, 256)
     assert timestamps.shape == (2,)
@@ -44,21 +59,24 @@ def test_data_augmentation_collapse():
     assert gt_angle == aug_params[4]
     assert gt_flip == aug_params[5]
 
-    with h5py.File(data_path/'000001.hdf5', 'r') as f1, \
-            h5py.File(data_path/'000002.hdf5', 'r') as f2:
-        gt_events = np.vstack([f1['events'], f2['events']])
-        gt_events = np.hstack([gt_events, np.full_like(gt_events[:, [0]], 0)])
-        start = float(f1['start'][()])
-        stop = float(f2['stop'][()])
-        gt_events[:, 2] -= start
-        gt_timestamps = np.array([0, stop - start])
-        image1 = np.array(f1['image1'])[None]
-        image2 = np.array(f2['image2'])[None]
-        assert float(f1['stop'][()]) == float(f2['start'][()])
-        assert (np.array(f1['image2']) == np.array(f2['image1'])).all()
-        gt_images = np.concatenate([image1, image2], axis=0).astype(np.float32)
-    assert (events == gt_events).all()
+    element1 = tuple(read_test_elem(1, element_index=0, box=gt_box))
+    element2 = tuple(read_test_elem(2, element_index=0, box=gt_box))
+    gt_events = concat_events(element1[0], element2[0])
+    gt_timestamps = np.array([0, element2[2] - element1[1]])
+    gt_events['timestamp'] -= element1[1]
+    assert element1[2] == element2[1]
+    assert (element1[4] == element2[3]).all()
+    gt_images = np.concatenate([element1[3][None], element2[4][None]],
+                               axis=0).astype(np.float32)
+
+    compare(events, gt_events)
     assert (timestamps == gt_timestamps).all()
+    print(timestamps)
+    print(gt_timestamps)
+    print(type(timestamps), type(gt_timestamps))
+    print(type(images == gt_images))
+    print(type(images), type(gt_images))
+    print(images.shape, gt_images.shape)
     assert (images == gt_images).all()
 
 

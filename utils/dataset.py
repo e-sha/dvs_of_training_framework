@@ -534,7 +534,11 @@ class DatasetImpl:
         assert all(events[:, 2] <= image_ts[-1])
 
         if self.is_raw:
-            samples = events
+            samples = {'x': events[:, 0].astype(np.int64),
+                       'y': events[:, 1].astype(np.int64),
+                       'timestamp': events[:, 2],
+                       'polarity': events[:, 3].astype(np.int64),
+                       'element_index': events[:, 4].astype(np.int64)}
         else:
             with torch.no_grad():
                 samples = compute_event_image(events,
