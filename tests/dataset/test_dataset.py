@@ -99,8 +99,9 @@ def test_data_augmentation_flip():
     assert gt_flip == aug_params[5]
 
     # (x, y) -> linear index
-    first_indices = np.ravel_multi_index(events[:, 1::-1].T.astype(int),
-                                         first_images[0].shape)
+    first_indices = np.ravel_multi_index(
+            np.vstack([events['y'][None], events['x'][None]]),
+            first_images[0].shape)
 
     gt_flip = not gt_flip
     events, timestamps, second_images, aug_params = dataset.__getitem__(
@@ -114,8 +115,9 @@ def test_data_augmentation_flip():
     assert gt_flip == aug_params[5]
 
     # (x, y) -> linear index
-    second_indices = np.ravel_multi_index(events[:, 1::-1].T.astype(int),
-                                          second_images[0].shape)
+    second_indices = np.ravel_multi_index(
+            np.vstack([events['y'][None], events['x'][None]]),
+            second_images[0].shape)
 
     assert (first_images != second_images).any()
     assert first_images.shape == second_images.shape
@@ -143,19 +145,19 @@ def test_data_augmentation_angle():
     assert gt_flip == aug_params[5]
 
     # (x, y) -> linear index
-    rotated_indices = np.ravel_multi_index(events[:, 1::-1].T.astype(int),
-                                           rotated_images[0].shape)
+    rotated_indices = np.ravel_multi_index(
+            np.vstack([events['y'][None], events['x'][None]]),
+            rotated_images[0].shape)
     H, W = rotated_images.shape[-2:]
     assert W % 2 == 0
     assert H % 2 == 0
-    x = -(events[:, [1]] - H // 2) + W // 2
-    y = (events[:, [0]] - W // 2) + H // 2
+    x = -(events['y'][None] - H // 2) + W // 2
+    y = (events['x'][None] - W // 2) + H // 2
     assert (y < H).all()
     assert (y >= 0).all()
     assert (x < W).all()
     assert (x >= 0).all()
-    original_indices = np.ravel_multi_index(np.vstack([y.T, x.T]).astype(int),
-                                            [H, W])
+    original_indices = np.ravel_multi_index(np.vstack([y, x]), [H, W])
 
     gt_angle = 0
     _, _, original_images, aug_params = dataset.__getitem__(
@@ -193,29 +195,30 @@ def test_data_augmentation_crop():
     assert gt_angle == aug_params[4]
     assert gt_flip == aug_params[5]
     assert images.shape[-2:] == tuple(gt_box[-2:])
-    assert (events[:, :2] >= 0).all()
-    assert (events[:, 0] < gt_box[-1]).all()
-    assert (events[:, 1] < gt_box[-2]).all()
+    assert (events['x'] >= 0).all()
+    assert (events['y'] >= 0).all()
+    assert (events['x'] < gt_box[-1]).all()
+    assert (events['y'] < gt_box[-2]).all()
 
-    with h5py.File(data_path/'000001.hdf5', 'r') as f:
-        gt_events = np.array(f['events'])
-        image1 = np.array(f['image1'])[None]
-        image2 = np.array(f['image2'])[None]
-        gt_images = np.concatenate([image1, image2], axis=0).astype(np.float32)
+    gt_events, _, _, gt_image1, gt_image2 = read_test_elem(
+            gt_idx, element_index=0)
+    gt_images = np.concatenate([gt_image1[None], gt_image2[None]], axis=0)
 
     box_stop = [gt_box[0] + gt_box[2], gt_box[1] + gt_box[3]]
     assert (gt_images[:,
                       gt_box[0]:box_stop[0],
                       gt_box[1]:box_stop[1]] == images).all()
-    mask = np.logical_and(np.logical_and(gt_events[:, 0] >= gt_box[1],
-                                         gt_events[:, 0] < box_stop[1]),
-                          np.logical_and(gt_events[:, 1] >= gt_box[0],
-                                         gt_events[:, 1] < box_stop[0]))
+    mask = np.logical_and(np.logical_and(gt_events['x'] >= gt_box[1],
+                                         gt_events['x'] < box_stop[1]),
+                          np.logical_and(gt_events['y'] >= gt_box[0],
+                                         gt_events['y'] < box_stop[0]))
     # (x, y) -> linear index
-    cropped_indices = np.ravel_multi_index(events[:, 1::-1].T.astype(int),
-                                           images.shape[-2:])
+    cropped_indices = np.ravel_multi_index(
+            np.vstack([events['y'][None], events['x'][None]]),
+            images.shape[-2:])
     original_indices = np.ravel_multi_index(
-            gt_events[mask, 1::-1].T.astype(int),
+            np.vstack([gt_events['y'][mask][None],
+                       gt_events['x'][mask][None]]),
             gt_images.shape[-2:])
     for i in range(images.shape[0]):
         assert (images[i].ravel()[cropped_indices] ==
@@ -241,27 +244,19 @@ def test_data_augmentation_sequence():
     assert gt_angle == aug_params[4]
     assert gt_flip == aug_params[5]
 
-    with h5py.File(data_path/'000001.hdf5', 'r') as f1, \
-            h5py.File(data_path/'000002.hdf5', 'r') as f2:
-        gt_events1 = np.array(f1['events'])
-        gt_events2 = np.array(f2['events'])
-        gt_events = map(lambda x, y: np.hstack((x,
-                                                np.full_like(x[:, [0]], y))),
-                        (gt_events1, gt_events2), (0, 1))
-        gt_events = np.vstack(list(gt_events))
-        start = float(f1['start'][()])
-        intermediate = float(f1['stop'][()])
-        stop = float(f2['stop'][()])
-        gt_events[:, 2] -= start
-        gt_timestamps = np.array([start, intermediate, stop]) - start
-        image1 = np.array(f1['image1'])[None]
-        image2 = np.array(f1['image2'])[None]
-        image3 = np.array(f2['image2'])[None]
-        assert float(f1['stop'][()]) == float(f2['start'][()])
-        assert (np.array(f1['image2']) == np.array(f2['image1'])).all()
-        gt_images = np.concatenate([image1, image2, image3], axis=0) \
-                      .astype(np.float32)
-    assert (events == gt_events).all()
+    element1 = tuple(read_test_elem(gt_idx, element_index=0))
+    element2 = tuple(read_test_elem(gt_idx + 1, element_index=1))
+    gt_events = concat_events(element1[0], element2[0])
+    gt_events['timestamp'] -= element1[1]
+    gt_timestamps = np.array([element1[1],
+                              element1[2],
+                              element2[2]]) - element1[1]
+    assert element1[2] == element2[1]
+    assert (element1[4] == element2[3]).all()
+    gt_images = np.concatenate([element1[3][None],
+                                element1[4][None],
+                                element2[4][None]], axis=0)
+    compare(events, gt_events)
     assert (timestamps == gt_timestamps).all()
     assert (images[0] == gt_images[0]).all()
     assert (images[1] == gt_images[1]).all()

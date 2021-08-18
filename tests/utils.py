@@ -53,7 +53,9 @@ def read_test_elem(i,
               'timestamp': events[:, 2],
               'polarity': events[:, 3].astype(np.int64)}
     if element_index is not None:
-        events['element_index'] = np.zeros_like(events['x'], dtype=np.uint64)
+        events['element_index'] = np.full_like(events['x'],
+                                               element_index,
+                                               dtype=np.uint64)
     image_crop = ImageCrop(box=box, return_box=False, channel_first=False)
     images = tuple(map(image_crop, images))
     return map(map_function, (events, start, stop, *images))
