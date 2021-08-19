@@ -655,10 +655,18 @@ def collate_wrapper(batch):
             return torch.LongTensor(x)
         return torch.FloatTensor(x)
 
+    def events2ndarray(events):
+        return np.hstack([
+            events['x'].astype(np.float32).reshape(-1, 1),
+            events['y'].astype(np.float32).reshape(-1, 1),
+            events['timestamp'].reshape(-1, 1),
+            events['polarity'].astype(np.float32).reshape(-1, 1),
+            events['element_index'].astype(np.float32).reshape(-1, 1)])
+
     #     0          1        2            3
     # (events, timestamps, images, augmentation_params)
     # add sample index to events
-    events = np.vstack([add_sample_index(sample[0], i)
+    events = np.vstack([add_sample_index(events2ndarray(sample[0]), i)
                         for i, sample in enumerate(batch)])
     sample_idx = np.hstack([np.full_like(sample[1], i, dtype=np.int_)
                             for i, sample in enumerate(batch)])
