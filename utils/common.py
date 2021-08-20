@@ -1,5 +1,7 @@
+import numpy as np
 import re
 import torch
+from typing import Union, Dict
 
 
 def get_torch_version():
@@ -32,3 +34,26 @@ def cumsum_with_prefix(tensor: torch.Tensor,
     result[0] = 0
     result[1:] = cs
     return result
+
+
+def to_tensor(data: Union[np.ndarray, Dict]):
+    """Comverts data to torch.Tensor
+
+    If data is dict, the function convert each item of it to torch.Tensor.
+    Otherwise, apply torch.Tensor to the data.
+
+    Args:
+        data:
+            A tensor data or dictionary of str->tensor data
+
+    Returns:
+        A converted data
+    """
+    if isinstance(data, dict):
+        for k, v in data.items():
+            print(k)
+            data[k] = to_tensor(v)
+        return data
+    if isinstance(data, np.ndarray) and data.dtype == np.int_:
+        return torch.tensor(data, dtype=torch.long)
+    return torch.tensor(data, dtype=torch.float32)

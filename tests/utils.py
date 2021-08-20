@@ -5,6 +5,9 @@ import sys
 import torch
 
 
+from utils.common import to_tensor
+
+
 test_path = Path(__file__).parent.resolve()
 while test_path.name != 'tests':
     test_path = test_path.parent
@@ -27,11 +30,7 @@ def read_test_elem(i,
     def map_function(data):
         if not is_torch:
             return data
-        if isinstance(data, dict):
-            for k in data:
-                data[k] = map_function(data[k])
-            return data
-        return torch.tensor(data)
+        return to_tensor(data)
 
     filename = f'{i:06d}.hdf5'
     with h5py.File(data_path/filename, 'r') as f:
@@ -55,7 +54,7 @@ def read_test_elem(i,
     if element_index is not None:
         events['element_index'] = np.full_like(events['x'],
                                                element_index,
-                                               dtype=np.uint64)
+                                               dtype=np.int_)
     image_crop = ImageCrop(box=box, return_box=False, channel_first=False)
     images = tuple(map(image_crop, images))
     return map(map_function, (events, start, stop, *images))

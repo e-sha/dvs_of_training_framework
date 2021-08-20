@@ -7,7 +7,7 @@ import torch.utils.data
 import typing
 
 from EV_FlowNet.net import compute_event_image
-from .common import cumsum_with_prefix
+from .common import cumsum_with_prefix, to_tensor
 from .data import EventCrop, ImageRandomCrop
 from .data import RandomRotation, ImageCentralCrop
 
@@ -534,23 +534,23 @@ class DatasetImpl:
         assert all(events[:, 2] <= image_ts[-1])
 
         if self.is_raw:
-            samples = {'x': events[:, 0].astype(np.int64),
-                       'y': events[:, 1].astype(np.int64),
-                       'timestamp': events[:, 2],
-                       'polarity': events[:, 3].astype(np.int64),
-                       'element_index': events[:, 4].astype(np.int64)}
+            elements = {'x': events[:, 0].astype(np.int_),
+                        'y': events[:, 1].astype(np.int_),
+                        'timestamp': events[:, 2],
+                        'polarity': events[:, 3].astype(np.int_),
+                        'element_index': events[:, 4].astype(np.int_)}
         else:
             with torch.no_grad():
-                samples = compute_event_image(events,
-                                              image_ts[:-1],
-                                              image_ts[1:],
-                                              self.shape,
-                                              device='cpu',
-                                              dtype=torch.float32)[0]
+                elements = compute_event_image(events,
+                                               image_ts[:-1],
+                                               image_ts[1:],
+                                               self.shape,
+                                               device='cpu',
+                                               dtype=torch.float32)[0]
 
         box = np.array(box, dtype=int)
         is_flip = np.array([is_flip], dtype=bool)
-        return (samples,
+        return (elements,
                 image_ts,
                 images,
                 (idx, seq_length, k, box, angle, is_flip))
@@ -650,11 +650,6 @@ def add_sample_index(events, i):
 
 
 def collate_wrapper(batch):
-    def to_tensor(x):
-        if isinstance(x, np.ndarray) and x.dtype == np.int_:
-            return torch.LongTensor(x)
-        return torch.FloatTensor(x)
-
     def events2ndarray(events):
         return np.hstack([
             events['x'].astype(np.float32).reshape(-1, 1),
@@ -663,11 +658,27 @@ def collate_wrapper(batch):
             events['polarity'].astype(np.float32).reshape(-1, 1),
             events['element_index'].astype(np.float32).reshape(-1, 1)])
 
+    def add_sample_index_to_dict(events, i):
+        events['sample_index'] = np.full_like(events['x'], i)
+        return events
+
+    def stack_events(batch):
+        events_per_sample = [sample[0]['x'].size for sample in batch]
+        batch_size = len(events_per_sample)
+        shift = np.cumsum(events_per_sample)
+        result_keys = {'x', 'y', 'timestamp', 'polarity',
+                       'element_index'}
+        result = {k: np.hstack([sample[0][k] for sample in batch])
+                  for k in result_keys}
+        result['sample_index'] = np.zeros(shift[-1], dtype=np.int64)
+        for i in range(batch_size - 1):
+            result['sample_index'][shift[i]:shift[i + 1]] = i + 1
+        return result
+
     #     0          1        2            3
     # (events, timestamps, images, augmentation_params)
     # add sample index to events
-    events = np.vstack([add_sample_index(events2ndarray(sample[0]), i)
-                        for i, sample in enumerate(batch)])
+    events = stack_events(batch)
     sample_idx = np.hstack([np.full_like(sample[1], i, dtype=np.int_)
                             for i, sample in enumerate(batch)])
     timestamps = np.hstack([sample[1]

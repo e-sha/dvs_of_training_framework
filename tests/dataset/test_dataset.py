@@ -1,4 +1,3 @@
-import h5py
 import numpy as np
 import torch
 
@@ -277,30 +276,25 @@ def test_dataloader():
                                               shuffle=False)
     batch = next(iter(data_loader))
 
-    with h5py.File(data_path/'000000.hdf5', 'r') as f0, \
-            h5py.File(data_path/'000001.hdf5', 'r') as f1:
-        gt_events0 = np.array(f0['events'])
-        start0 = float(f0['start'][()])
-        gt_events0[:, 2] -= start0
-        gt_events1 = np.array(f1['events'])
-        start1 = float(f1['start'][()])
-        gt_events1[:, 2] -= start1
-        gt_events = map(lambda x, y: np.hstack((x,
-                                                np.full_like(x[:, [0]], 0),
-                                                np.full_like(x[:, [0]], y))),
-                        (gt_events0, gt_events1), (0, 1))
-        gt_events = torch.tensor(np.vstack(list(gt_events)),
-                                 dtype=torch.float32)
-        stop0 = float(f0['stop'][()]) - start0
-        stop1 = float(f1['stop'][()]) - start1
-        gt_timestamps = torch.tensor([0, stop0, 0, stop1], dtype=torch.float32)
-        gt_sample_idx = torch.tensor([0, 0, 1, 1], dtype=torch.long)
-        image00 = torch.tensor(f0['image1'], dtype=torch.float32)[None, None]
-        image01 = torch.tensor(f0['image2'], dtype=torch.float32)[None, None]
-        image10 = torch.tensor(f1['image1'], dtype=torch.float32)[None, None]
-        image11 = torch.tensor(f1['image2'], dtype=torch.float32)[None, None]
-        gt_images = torch.cat([image00, image01, image10, image11], dim=0) \
-                         .to(torch.float32)
+    element1 = tuple(read_test_elem(0, element_index=0, is_torch=True))
+    element2 = tuple(read_test_elem(1, element_index=0, is_torch=True))
+    element1[0]['timestamp'] -= element1[1]
+    element2[0]['timestamp'] -= element2[1]
+    gt_events = concat_events(element1[0], element2[0])
+    gt_events['sample_index'] = np.hstack([
+        np.full_like(element1[0]['x'], 0),
+        np.full_like(element2[0]['x'], 1)])
+    gt_events = {k: torch.tensor(v) for k, v in gt_events.items()}
+    gt_timestamps = torch.tensor(
+            [0, element1[2] - element1[1], 0, element2[2] - element1[1]],
+            dtype=torch.float32)
+    gt_sample_idx = torch.tensor([0, 0, 1, 1], dtype=torch.long)
+    image00 = torch.tensor(element1[3], dtype=torch.float32)[None, None]
+    image01 = torch.tensor(element1[4], dtype=torch.float32)[None, None]
+    image10 = torch.tensor(element2[3], dtype=torch.float32)[None, None]
+    image11 = torch.tensor(element2[4], dtype=torch.float32)[None, None]
+    gt_images = torch.cat([image00, image01, image10, image11], dim=0) \
+                     .to(torch.float32)
 
     assert torch.equal(batch['events'], gt_events)
     assert torch.equal(batch['timestamps'], gt_timestamps)
