@@ -18,14 +18,17 @@ from utils.training import train
 class TestDatasetEncoding:
     def setup_class(self):
         self.decoded = {
-            'events': torch.tensor([[1, 2, 0.02, -1, 0, 0],
-                                    [2, 1, 0.06, 1, 1, 0],
-                                    [2, 3, 0.07, -1, 1, 0],
-                                    [1, 4, 0.015, 1, 0, 1],
-                                    [4, 1, 0.01, 1, 0, 2],
-                                    [6, 6, 0.05, 1, 2, 2],
-                                    [7, 8, 0.07, -1, 3, 2]],
-                                   dtype=torch.float32),
+            'events': {
+                'x': torch.tensor([1, 2, 2, 1, 4, 6, 7], dtype=torch.long),
+                'y': torch.tensor([2, 1, 3, 4, 1, 6, 8], dtype=torch.long),
+                'timestamp': torch.tensor([0.02, 0.06, 0.07, 0.015, 0.01,
+                                           0.05, 0.07], dtype=torch.float32),
+                'polarity': torch.tensor([-1, 1, -1, 1, 1, 1, -1],
+                                         dtype=torch.long),
+                'element_index': torch.tensor([0, 1, 1, 0, 0, 2, 3],
+                                              dtype=torch.long),
+                'sample_index': torch.tensor([0, 0, 0, 1, 2, 2, 2],
+                                             dtype=torch.long)},
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),

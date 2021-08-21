@@ -136,7 +136,8 @@ def encode_batch(events: torch.Tensor,
 
     Args:
         events:
-            Events for a batch in [x, y, timestamp, polarity, element, sample]
+            Events for a batch as a dict with keys
+            {x, y, timestamp, polarity, element_index, sample_index}.
         timestamps:
             Timestamps of images in the batch
         sample_idx:
@@ -169,12 +170,12 @@ def encode_batch(events: torch.Tensor,
         images is a uint8 tensor representing images;
         augmentation_params is dictionary of augmentation parameters.
     """
-    x = events[:, 0].to(torch.short)
-    y = events[:, 1].to(torch.short)
-    t = events[:, 2]
-    p = ((events[:, 3] + 1) / 2).to(torch.bool)
-    e = events[:, 4].to(torch.long).numpy()
-    s = events[:, 5].to(torch.short).numpy()
+    x = events['x'].to(torch.short)
+    y = events['y'].to(torch.short)
+    t = events['timestamp']
+    p = ((events['polarity'] + 1) / 2).to(torch.bool)
+    e = events['element_index'].to(torch.long).numpy()
+    s = events['sample_index'].to(torch.short).numpy()
 
     elements_per_sample = np.zeros(size, dtype=np.short) - 1
     np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
@@ -205,13 +206,14 @@ def decode_batch(encoded_batch):
 
     Returns:
         Batch of data as a dict with keys
-        (events, timestamps, sample_idx, images, augmentation_params, size)
+        (events, timestamps, sample_idx, images, augmentation_params, size).
+        The batch format is the same as the input of encode_batch
     """
     events = encoded_batch['events']
     timestamps = encoded_batch['timestamps']
     images = encoded_batch['images']
     augmentation_params = encoded_batch['augmentation_params']
-    polarity = events['polarity'].view(-1, 1).to(torch.float32) * 2 - 1
+    polarity = events['polarity'].to(torch.long) * 2 - 1
     sample_idx = torch.cat([
         torch.full([n.item() + 1], i, dtype=torch.long)
         for i, n in enumerate(events['elements_per_sample'])])
@@ -227,17 +229,17 @@ def decode_batch(encoded_batch):
                                              sample_shift[i + 1]]
         num_events = sum(current_events_per_element).item()
         element_index.append(torch.cat(
-            [torch.full([n], j, dtype=torch.float32)
+            [torch.full([n], j, dtype=torch.long)
              for j, n in enumerate(current_events_per_element)]))
-        sample_index.append(torch.full([num_events], i, dtype=torch.float32))
+        sample_index.append(torch.full([num_events], i, dtype=torch.long))
     element_index = torch.cat(element_index)
     sample_index = torch.cat(sample_index)
-    out_events = torch.cat([events['x'].view(-1, 1).to(torch.float32),
-                            events['y'].view(-1, 1).to(torch.float32),
-                            events['timestamp'].view(-1, 1),
-                            polarity,
-                            element_index.view(-1, 1),
-                            sample_index.view(-1, 1)], dim=1)
+    out_events = {'x': events['x'].to(torch.long),
+                  'y': events['y'].to(torch.long),
+                  'timestamp': events['timestamp'],
+                  'polarity': polarity,
+                  'element_index': element_index,
+                  'sample_index': sample_index}
     return {'events': out_events,
             'timestamps': timestamps.to(torch.float32),
             'sample_idx': sample_idx,
