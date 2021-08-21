@@ -51,7 +51,6 @@ def to_tensor(data: Union[np.ndarray, Dict]):
     """
     if isinstance(data, dict):
         for k, v in data.items():
-            print(k)
             data[k] = to_tensor(v)
         return data
     if isinstance(data, np.ndarray) and data.dtype == np.int_:

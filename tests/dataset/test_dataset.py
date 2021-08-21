@@ -70,12 +70,6 @@ def test_data_augmentation_collapse():
 
     compare(events, gt_events)
     assert (timestamps == gt_timestamps).all()
-    print(timestamps)
-    print(gt_timestamps)
-    print(type(timestamps), type(gt_timestamps))
-    print(type(images == gt_images))
-    print(type(images), type(gt_images))
-    print(images.shape, gt_images.shape)
     assert (images == gt_images).all()
 
 
@@ -286,7 +280,7 @@ def test_dataloader():
         np.full_like(element2[0]['x'], 1)])
     gt_events = {k: torch.tensor(v) for k, v in gt_events.items()}
     gt_timestamps = torch.tensor(
-            [0, element1[2] - element1[1], 0, element2[2] - element1[1]],
+            [0, element1[2] - element1[1], 0, element2[2] - element2[1]],
             dtype=torch.float32)
     gt_sample_idx = torch.tensor([0, 0, 1, 1], dtype=torch.long)
     image00 = torch.tensor(element1[3], dtype=torch.float32)[None, None]
@@ -296,7 +290,7 @@ def test_dataloader():
     gt_images = torch.cat([image00, image01, image10, image11], dim=0) \
                      .to(torch.float32)
 
-    assert torch.equal(batch['events'], gt_events)
+    compare(batch['events'], gt_events)
     assert torch.equal(batch['timestamps'], gt_timestamps)
     assert torch.equal(batch['sample_idx'], gt_sample_idx)
     assert (batch['images'] == gt_images).all()

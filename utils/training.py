@@ -45,11 +45,13 @@ def process_minibatch(model,
                       evaluator,
                       weights):
     timers('batch2gpu').start()
-    events, timestamps, sample_idx, images = map(lambda x: x.to(device),
-                                                 (batch['events'],
-                                                  batch['timestamps'],
-                                                  batch['sample_idx'],
-                                                  batch['images']))
+    timestamps, sample_idx, images = map(lambda x: x.to(device),
+                                         (batch['timestamps'],
+                                          batch['sample_idx'],
+                                          batch['images']))
+    events = batch['events']
+    for k in set.difference(set(events.keys()), {'size'}):
+        events[k] = events[k].to(device)
     timers('batch2gpu').stop()
     shape = images.size()[-2:]
     timers('forward').start()
