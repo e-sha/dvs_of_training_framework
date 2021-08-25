@@ -30,12 +30,16 @@ script_dir = Path(__file__).resolve().parent
 
 
 def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
-    events = {'x': torch.LongTensor([], device=device),
-              'y': torch.LongTensor([], device=device),
-              'timestamp': torch.FloatTensor([], device=device),
-              'polarity': torch.LongTensor([], device=device),
-              'element_index': torch.LongTensor([], device=device),
-              'sample_index': torch.LongTensor([], device=device)}
+    events = {'x': torch.tensor([], dtype=torch.long, device=device),
+              'y': torch.tensor([], dtype=torch.long, device=device),
+              'timestamp': torch.tensor([], dtype=torch.float32,
+                                        device=device),
+              'polarity': torch.tensor([], dtype=torch.long,
+                                       device=device),
+              'element_index': torch.tensor([], dtype=torch.long,
+                                            device=device),
+              'sample_index': torch.tensor([], dtype=torch.long,
+                                           device=device)}
     with torch.no_grad():
         out = model(events,
                     torch.tensor([0, 0.04],
