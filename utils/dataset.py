@@ -373,6 +373,8 @@ class DatasetImpl:
                  collapse_length=6,  # maximum index distance between images
                                      # used for a single Optical Flow
                                      # predictions
+                 min_seq_length=1,   # minimum number of expected OF
+                                     # predictions per sample
                  max_seq_length=1,   # maximum number of expected OF
                                      # predictions per sample
                  is_static_seq_length=True,
@@ -383,9 +385,13 @@ class DatasetImpl:
         self.files = sorted(list(self.path.glob('*.hdf5')),
                             key=lambda x: int(x.stem))
         assert len(self.files) > 0, f"No hdf5 files found in {self.path}"
+        assert min_seq_length <= max_seq_length
+        assert min_seq_length >= 1
+        assert not is_static_seq_length or min_seq_length == max_seq_length
         self.augmentation = augmentation
         self.shape = shape
         self.collapse_length = collapse_length
+        self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
         self.is_static_seq_length = is_static_seq_length
         self.is_raw = is_raw
@@ -459,7 +465,7 @@ class DatasetImpl:
                     choices = min(len(self.files) - idx, self.max_seq_length)
                     seq_length = np.random.randint(choices) + 1
             else:
-                seq_length = self.max_seq_length
+                seq_length = self.min_seq_length
 
         # choose collapse length from 1 to self.collapse_length
         if k is None:

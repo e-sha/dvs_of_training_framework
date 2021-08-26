@@ -29,7 +29,8 @@ from utils.training import train, make_hook_periodic
 script_dir = Path(__file__).resolve().parent
 
 
-def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
+def init_losses(shape, batch_size, model, device, sequence_length,
+                timers=FakeTimer()):
     events = {'x': torch.tensor([], dtype=torch.long, device=device),
               'y': torch.tensor([], dtype=torch.long, device=device),
               'timestamp': torch.tensor([], dtype=torch.float32,
@@ -41,11 +42,12 @@ def init_losses(shape, batch_size, model, device, timers=FakeTimer()):
               'sample_index': torch.tensor([], dtype=torch.long,
                                            device=device)}
     with torch.no_grad():
+        num_timestamps = sequence_length + 1
         out = model(events,
-                    torch.tensor([0, 0.04],
+                    torch.tensor([0.04 * i for i in range(num_timestamps)],
                                  dtype=torch.float32,
                                  device=device),
-                    torch.tensor([0, 0],
+                    torch.tensor([0] * num_timestamps,
                                  dtype=torch.long,
                                  device=device),
                     shape, raw=True)
@@ -106,6 +108,7 @@ def get_common_dataset_params(args):
                            batch_size=args.mbs,
                            pin_memory=True,
                            num_workers=args.num_workers,
+                           min_seq_length=args.min_sequence_length,
                            max_seq_length=args.max_sequence_length,
                            is_static_seq_length=not args.dynamic_sample_length)
 
@@ -137,7 +140,10 @@ def get_dataset(params):
               'shape': params.shape,
               'augmentation': params.augmentation,
               'collapse_length': params.collapse_length,
-              'is_raw': params.is_raw}
+              'is_raw': params.is_raw,
+              'min_seq_length': params.min_seq_length,
+              'max_seq_length': params.max_seq_length,
+              'is_static_seq_length': params.is_static_seq_length}
     if params.infinite:
         return IterableDataset(shuffle=params.shuffle, **kwargs)
     return Dataset(**kwargs)
@@ -281,6 +287,8 @@ def main():
     losses = init_losses(get_resolution(args),
                          args.bs, model,
                          device,
+                         sequence_length=args.prefix_length +
+                         args.suffix_length + 1,
                          timers=timers)
 
     # allow only manual flush

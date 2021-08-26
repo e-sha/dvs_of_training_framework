@@ -190,6 +190,11 @@ def add_train_arguments(parser):
                              'augmenting data on a fly',
                         dest='preprocessed_dataset',
                         action='store_true')
+    parser.add_argument('--min-sequence-length',
+                        help='Minimum sample length in the input data',
+                        dest='min_sequence_length',
+                        default=1,
+                        type=int)
     parser.add_argument('--max-sequence-length',
                         help='Maximum sample length in the input data',
                         dest='max_sequence_length',
