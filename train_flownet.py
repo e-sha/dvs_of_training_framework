@@ -332,7 +332,8 @@ def main():
               timers=timers,
               hooks=periodic_hooks,
               init_step=global_step,
-              init_samples_passed=samples_passed)
+              init_samples_passed=samples_passed,
+              max_events_per_batch=args.max_events_per_batch)
 
     samples = samples_passed + (args.training_steps - global_step) * args.bs
     hooks['serialization'](args.training_steps, samples)

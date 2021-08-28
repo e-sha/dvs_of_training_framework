@@ -91,7 +91,8 @@ def train(model,
           timers=SynchronizedWallClockTimer(),
           hooks={},
           init_step=0,
-          init_samples_passed=0):
+          init_samples_passed=0,
+          max_events_per_batch: int = 350000):
     ''' Performs training
 
     Args:
@@ -108,6 +109,9 @@ def train(model,
         accumulation_steps (int): gradient accumulation steps
         hooks (dict): hooks that should be called after each step of optimizer.
                       Each hook is a Callable(steps, samples_passed)->None
+        max_events_per_batch:
+            Maximum number of events in a batch. If any batch has more events,
+            it is skipped.
     '''
 
     model.train()
@@ -119,10 +123,24 @@ def train(model,
     out_reg_sum = []
     optimizer.zero_grad()
     init_batch = init_step * accumulation_steps
+    global_step = init_batch
+    num_skipped = 0
+    num_processed = 0
     timers('batch_construction').start()
-    for global_step, batch in enumerate(loader, init_batch):
+    for batch in loader:
         if global_step == num_steps * accumulation_steps:
             break
+        num_events = batch['events']['x'].numel()
+        if num_events > max_events_per_batch:
+            num_skipped += 1
+            print(f'Skipping batch with {num_events} events')
+            print('Augmentation parameters '
+                  f'{batch["augmentation_params"]}')
+            print('Processing rate is '
+                  f'{num_processed / (num_processed + num_skipped):.2f}')
+            continue
+        num_processed += 1
+        global_step += 1
         timers('batch_construction').stop()
         samples_passed += batch['size']
         loss, (smoothness, photometric, out_reg), tags = process_minibatch(
@@ -132,7 +150,7 @@ def train(model,
         loss.backward()
         timers('backprop').stop()
 
-        is_step_boundary = (global_step + 1) % accumulation_steps == 0
+        is_step_boundary = global_step % accumulation_steps == 0
         if is_step_boundary:
             timers('optimizer_step').start()
             optimizer.step()
@@ -172,7 +190,7 @@ def train(model,
             out_reg_sum = []
             timers('logging').stop()
 
-            step = (global_step + 1) // accumulation_steps
+            step = global_step // accumulation_steps
             for k, hook in hooks.items():
                 timers(k).start()
                 hook(step, samples_passed)
