@@ -221,6 +221,10 @@ def add_train_arguments(parser):
                         dest='max_events_per_batch',
                         default=350000,
                         type=int)
+    parser.add_argument('--skip-validation',
+                        help='Flag to skip validation step',
+                        dest='skip_validation',
+                        action='store_true')
     return parser
 
 

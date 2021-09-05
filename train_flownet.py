@@ -242,12 +242,13 @@ def create_hooks(args, model, optimizer, losses, logger, serializer):
     device = torch.device(args.device)
     loader = get_dataloader(get_valset_params(args))
     hooks = {'serialization': SerializationHook(serializer, model, optimizer,
-                                                logger),
-             'validation': ValidationHook(model, device, loader, logger,
-                                          losses, weights=args.loss_weights,
-                                          is_raw=args.is_raw)}
-    periods = {'serialization': args.checkpointing_interval,
-               'validation': args.vp}
+                                                logger)}
+    periods = {'serialization': args.checkpointing_interval}
+    if not args.skip_validation:
+        hooks['validation'] = ValidationHook(model, device, loader, logger,
+                                             losses, weights=args.loss_weights,
+                                             is_raw=args.is_raw)
+        periods['validation'] = args.vp
     periodic_hooks = {k: make_hook_periodic(hooks[k], periods[k])
                       for k in periods}
     return periodic_hooks, hooks
@@ -314,7 +315,8 @@ def main():
         samples_passed = 0
         hooks['serialization'](global_step, samples_passed)
 
-    hooks['validation'](global_step, samples_passed)
+    if not args.skip_validation:
+        hooks['validation'](global_step, samples_passed)
 
     with Profiler(args.profiling, args.model/'profiling'), \
             GPUMonitor(args.log_path):
@@ -337,7 +339,8 @@ def main():
 
     samples = samples_passed + (args.training_steps - global_step) * args.bs
     hooks['serialization'](args.training_steps, samples)
-    hooks['validation'](args.training_steps, samples)
+    if not args.skip_validation:
+        hooks['validation'](args.training_steps, samples)
 
 
 if __name__ == '__main__':
