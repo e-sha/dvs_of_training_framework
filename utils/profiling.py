@@ -51,7 +51,8 @@ class Profiler():
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._prof.__exit__(exc_type, exc_val, exc_tb)
+        if self._enabled:
+            self._prof.__exit__(exc_type, exc_val, exc_tb)
         if self._enabled and not self._nvtx:
             self._prof.export_chrome_trace(self._logdir/'tracefile.json')
             table_path = self._logdir/'table.txt'

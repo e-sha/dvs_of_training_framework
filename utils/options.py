@@ -219,7 +219,7 @@ def add_train_arguments(parser):
     parser.add_argument('--max-events-per-batch',
                         help='Maximum number of events in a batch',
                         dest='max_events_per_batch',
-                        default=350000,
+                        default=35000000,
                         type=int)
     parser.add_argument('--skip-validation',
                         help='Flag to skip validation step',

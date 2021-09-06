@@ -73,6 +73,7 @@ def process_minibatch(model,
                                 sample_idx,
                                 features,
                                 weights=weights)
+    terms = ((y.item() for y in x) for x in terms)
     timers('loss').stop()
     return loss, terms, tags
 
@@ -121,11 +122,10 @@ def train(model,
     smooth_sum = []
     photo_sum = []
     out_reg_sum = []
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     init_batch = init_step * accumulation_steps
     global_step = init_batch
     num_skipped = 0
-    num_processed = 0
     timers('batch_construction').start()
     for batch in loader:
         if global_step == num_steps * accumulation_steps:
@@ -133,13 +133,13 @@ def train(model,
         num_events = batch['events']['x'].numel()
         if num_events > max_events_per_batch:
             num_skipped += 1
+            num_processed = global_step - init_batch
             print(f'Skipping batch with {num_events} events')
             print('Augmentation parameters '
                   f'{batch["augmentation_params"]}')
             print('Processing rate is '
                   f'{num_processed / (num_processed + num_skipped):.2f}')
             continue
-        num_processed += 1
         global_step += 1
         timers('batch_construction').stop()
         samples_passed += batch['size']
@@ -154,7 +154,7 @@ def train(model,
         if is_step_boundary:
             timers('optimizer_step').start()
             optimizer.step()
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             timers('optimizer_step').stop()
             scheduler.step()
 
@@ -229,8 +229,8 @@ def train(model,
 
 def add_loss(loss_sum, loss_values):
     if len(loss_sum) == 0:
-        return [x.item() for x in loss_values]
-    return [x + y.item() for x, y in zip(loss_sum, loss_values)]
+        return list(loss_values)
+    return [x + y for x, y in zip(loss_sum, loss_values)]
 
 
 def validate(model, device, loader, samples_passed,
