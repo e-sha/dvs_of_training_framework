@@ -1,6 +1,7 @@
 from tests.utils import test_path
 import torch
 import tempfile
+import time
 from types import SimpleNamespace
 
 
@@ -36,7 +37,8 @@ def test_trainloop():
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                             mish=False, sp=None, prefix_length=0,
                             suffix_length=0, max_sequence_length=1,
-                            dynamic_sample_length=False),
+                            dynamic_sample_length=False,
+                            event_representation_depth=9),
             device=args.device)
     optimizer, scheduler = construct_train_tools(args, model)
     evaluator = Losses([tuple(map(lambda x: x // 2 ** i, shape))
@@ -48,6 +50,7 @@ def test_trainloop():
               scheduler=scheduler, logger=logger, evaluator=evaluator,
               timers=FakeTimer())
         del logger
+    time.sleep(1)
 
 
 def test_validation():
@@ -75,7 +78,8 @@ def test_validation():
             SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                             mish=False, sp=None, prefix_length=0,
                             suffix_length=0, max_sequence_length=1,
-                            dynamic_sample_length=False),
+                            dynamic_sample_length=False,
+                            event_representation_depth=9),
             device=args.device)
     optimizer, scheduler = construct_train_tools(args, model)
     evaluator = Losses([tuple(map(lambda x: x // 2 ** i, shape))
@@ -85,3 +89,4 @@ def test_validation():
         validate(model=model, device=args.device, loader=data_loader,
                  samples_passed=0, logger=logger, evaluator=evaluator)
         del logger
+    time.sleep(1)

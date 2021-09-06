@@ -2,6 +2,7 @@ import h5py
 from pathlib import Path
 import tempfile
 import torch
+import time
 from types import SimpleNamespace
 
 from tests.utils import test_path, data_path, compare
@@ -337,7 +338,8 @@ class TestDatasetEncoding:
                 SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                                 mish=False, sp=None, prefix_length=0,
                                 suffix_length=0, max_sequence_length=1,
-                                dynamic_sample_length=False),
+                                dynamic_sample_length=False,
+                                event_representation_depth=9),
                 device=args.device)
         optimizer, scheduler = construct_train_tools(args, model)
         batch_size = 4
@@ -355,3 +357,4 @@ class TestDatasetEncoding:
                   scheduler=scheduler, logger=logger, evaluator=evaluator,
                   timers=FakeTimer())
             del logger
+        time.sleep(1)

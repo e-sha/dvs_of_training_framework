@@ -225,6 +225,11 @@ def add_train_arguments(parser):
                         help='Flag to skip validation step',
                         dest='skip_validation',
                         action='store_true')
+    parser.add_argument('--event-representation-depth',
+                        help='Number of elements to represent a single event',
+                        dest='event_representation_depth',
+                        default=9,
+                        type=int)
     return parser
 
 
@@ -253,7 +258,9 @@ def options2model_kwargs(parameters):
     kargs = dict(prefix_length=parameters.prefix_length,
                  suffix_length=parameters.suffix_length,
                  max_sequence_length=parameters.max_sequence_length,
-                 dynamic_sample_length=parameters.dynamic_sample_length)
+                 dynamic_sample_length=parameters.dynamic_sample_length,
+                 event_representation_depth=parameters.
+                 event_representation_depth)
     if parameters.mish:
         kargs['activation'] = Mish()
     else:
