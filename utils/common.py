@@ -1,7 +1,12 @@
 import numpy as np
+import os
 import re
 import torch
 from typing import Union, Dict
+
+
+def is_inside_docker():
+    return 'INSIDE_DOCKER' in os.environ and bool(os.environ['INSIDE_DOCKER'])
 
 
 def get_torch_version():

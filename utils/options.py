@@ -240,6 +240,7 @@ def validate_common_args(args):
 
 def validate_train_args(args):
     args = validate_common_args(args)
+    args.shape = (args.height, args.width)
     assert args.bs > 0
     assert args.mbs > 0
     assert args.bs % args.mbs == 0

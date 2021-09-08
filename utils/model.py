@@ -2,6 +2,9 @@ import importlib.util
 import inspect
 import logging
 from pathlib import Path
+import torch
+
+from utils.options import options2model_kwargs
 
 
 def filter_kwargs(func, kwargs):
@@ -27,3 +30,15 @@ def import_module(module_name, module_path):
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
     return module
+
+
+def init_model(args, device):
+    module = import_module(f'{args.flownet_path.name}.net',
+                           args.flownet_path/'net.py')
+    model_kwargs = options2model_kwargs(args)
+    model_kwargs = filter_kwargs(module.Model, model_kwargs)
+    model = module.Model(device, **model_kwargs)
+    if args.sp is not None:
+        model.load_state_dict(torch.load(args.sp, map_location=device))
+    model.to(device)
+    return model

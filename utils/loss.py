@@ -207,3 +207,29 @@ class Losses:
                                images[stop_indices],
                                flow))
         return tuple(zip(*result))
+
+
+def init_losses(shape, batch_size, model, device, sequence_length,
+                timers=FakeTimer()):
+    events = {'x': torch.tensor([], dtype=torch.long, device=device),
+              'y': torch.tensor([], dtype=torch.long, device=device),
+              'timestamp': torch.tensor([], dtype=torch.float32,
+                                        device=device),
+              'polarity': torch.tensor([], dtype=torch.long,
+                                       device=device),
+              'element_index': torch.tensor([], dtype=torch.long,
+                                            device=device),
+              'sample_index': torch.tensor([], dtype=torch.long,
+                                           device=device)}
+    with torch.no_grad():
+        num_timestamps = sequence_length + 1
+        out = model(events,
+                    torch.tensor([0.04 * i for i in range(num_timestamps)],
+                                 dtype=torch.float32,
+                                 device=device),
+                    torch.tensor([0] * num_timestamps,
+                                 dtype=torch.long,
+                                 device=device),
+                    shape, raw=True)
+    out_shapes = tuple(tuple(flow.shape[2:]) for flow in out[0])
+    return Losses(out_shapes, batch_size, device, timers=timers)

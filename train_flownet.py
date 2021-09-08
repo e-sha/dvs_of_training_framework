@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -8,17 +7,16 @@ import torch.utils
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 import torch.optim as optim
-from types import SimpleNamespace
 import yaml
 
-from utils.dataset import Dataset, IterableDataset, collate_wrapper
-from utils.dataset import PreprocessedDataloader
+from utils.dataloader import get_trainset_params, get_valset_params
+from utils.dataloader import get_dataloader, choose_data_path
 from utils.hooks.validation import ValidationHook
 from utils.hooks.serialization import SerializationHook
-from utils.loss import Losses
-from utils.model import import_module, filter_kwargs
+from utils.loss import init_losses
+from utils.model import init_model
 from utils.monitors.gpumonitor import GPUMonitor
-from utils.options import add_train_arguments, options2model_kwargs
+from utils.options import add_train_arguments
 from utils.options import validate_train_args
 from utils.profiling import Profiler
 from utils.serializer import Serializer
@@ -27,32 +25,6 @@ from utils.training import train, make_hook_periodic
 
 
 script_dir = Path(__file__).resolve().parent
-
-
-def init_losses(shape, batch_size, model, device, sequence_length,
-                timers=FakeTimer()):
-    events = {'x': torch.tensor([], dtype=torch.long, device=device),
-              'y': torch.tensor([], dtype=torch.long, device=device),
-              'timestamp': torch.tensor([], dtype=torch.float32,
-                                        device=device),
-              'polarity': torch.tensor([], dtype=torch.long,
-                                       device=device),
-              'element_index': torch.tensor([], dtype=torch.long,
-                                            device=device),
-              'sample_index': torch.tensor([], dtype=torch.long,
-                                           device=device)}
-    with torch.no_grad():
-        num_timestamps = sequence_length + 1
-        out = model(events,
-                    torch.tensor([0.04 * i for i in range(num_timestamps)],
-                                 dtype=torch.float32,
-                                 device=device),
-                    torch.tensor([0] * num_timestamps,
-                                 dtype=torch.long,
-                                 device=device),
-                    shape, raw=True)
-    out_shapes = tuple(tuple(flow.shape[2:]) for flow in out[0])
-    return Losses(out_shapes, batch_size, device, timers=timers)
 
 
 def get_commithash():
@@ -69,22 +41,6 @@ def write_params(out_dir, args):
     (out_dir/'parameters').write_text(data2write)
 
 
-def is_inside_docker():
-    return 'INSIDE_DOCKER' in os.environ and bool(os.environ['INSIDE_DOCKER'])
-
-
-def choose_data_path(args):
-    args.model.mkdir(exist_ok=True, parents=True)
-    if is_inside_docker():
-        data_path = Path('/data/training/mvsec')
-    else:
-        base_dir = (script_dir/'..').resolve()
-        data_path = base_dir/'data'/'training'/'mvsec'
-    args.data_path = data_path
-    args.log_path = args.model/'log'
-    return args
-
-
 def parse_args(args, is_write=True):
     parser = ArgumentParser()
     args = add_train_arguments(parser).parse_args(args)
@@ -93,89 +49,6 @@ def parse_args(args, is_write=True):
     if is_write:
         write_params(args.model, args)
     return args
-
-
-def get_resolution(args):
-    return args.height, args.width
-
-
-def get_common_dataset_params(args):
-    is_raw = args.is_raw
-    collate_fn = collate_wrapper if is_raw else None
-    return SimpleNamespace(is_raw=is_raw,
-                           collate_fn=collate_fn,
-                           shape=get_resolution(args),
-                           batch_size=args.mbs,
-                           pin_memory=True,
-                           num_workers=args.num_workers,
-                           min_seq_length=args.min_sequence_length,
-                           max_seq_length=args.max_sequence_length,
-                           is_static_seq_length=not args.dynamic_sample_length)
-
-
-def get_trainset_params(args):
-    params = get_common_dataset_params(args)
-    params.path = args.data_path/'outdoor_day2'
-    params.augmentation = True
-    params.collapse_length = args.cl
-    params.shuffle = True
-    params.infinite = True
-    params.preprocessed_dataset = args.preprocessed_dataset
-    return params
-
-
-def get_valset_params(args):
-    params = get_common_dataset_params(args)
-    params.path = args.data_path/'outdoor_day1'
-    params.augmentation = False
-    params.collapse_length = 1
-    params.shuffle = False
-    params.infinite = False
-    params.preprocessed_dataset = False
-    return params
-
-
-def get_dataset(params):
-    kwargs = {'path': params.path,
-              'shape': params.shape,
-              'augmentation': params.augmentation,
-              'collapse_length': params.collapse_length,
-              'is_raw': params.is_raw,
-              'min_seq_length': params.min_seq_length,
-              'max_seq_length': params.max_seq_length,
-              'is_static_seq_length': params.is_static_seq_length}
-    if params.infinite:
-        return IterableDataset(shuffle=params.shuffle, **kwargs)
-    return Dataset(**kwargs)
-
-
-def get_dataloader(params):
-    if params.preprocessed_dataset:
-        path = params.path.parent / (params.path.name + '_preprocessed')
-        return PreprocessedDataloader(
-            path=path,
-            batch_size=params.batch_size)
-    loader_kwargs = {}
-    if not params.infinite:
-        loader_kwargs['shuffle'] = params.shuffle
-    return torch.utils.data.DataLoader(get_dataset(params),
-                                       collate_fn=params.collate_fn,
-                                       batch_size=params.batch_size,
-                                       num_workers=params.num_workers,
-                                       pin_memory=params.pin_memory,
-                                       **loader_kwargs)
-
-
-def init_model(args, device):
-    module = import_module(f'{args.flownet_path.name}.net',
-                           args.flownet_path/'net.py')
-    model_kwargs = options2model_kwargs(args)
-    model_kwargs = filter_kwargs(module.Model, model_kwargs)
-    model = module.Model(device, **model_kwargs)
-    if args.sp is not None:
-        model.load_state_dict(torch.load(args.sp, map_location=device))
-    model.to(device)
-    return model
 
 
 def get_params2optimize(model):
@@ -285,7 +158,7 @@ def main():
                                                  model,
                                                  passed_steps=last_step)
 
-    losses = init_losses(get_resolution(args),
+    losses = init_losses(args.shape,
                          args.bs, model,
                          device,
                          sequence_length=args.prefix_length +
