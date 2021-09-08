@@ -14,6 +14,10 @@ def get_torch_version():
     return tuple(map(int, version.split('.')))
 
 
+def mean(values):
+    return sum(values) / len(values)
+
+
 def cumsum_with_prefix(tensor: torch.Tensor,
                        dtype=None):
     """Returns cummulative sum of 1d tensor shifted by 1 element.

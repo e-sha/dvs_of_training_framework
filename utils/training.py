@@ -1,15 +1,12 @@
 import torch
 import torch.nn.functional as F
 
+from .common import mean
 from .timer import SynchronizedWallClockTimer, FakeTimer
 
 
 def interpolate(img, shape):
     return F.interpolate(img, size=shape, mode='bilinear', align_corners=True)
-
-
-def mean(v):
-    return sum(v) / len(v)
 
 
 def combined_loss(evaluator,

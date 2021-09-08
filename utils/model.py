@@ -39,6 +39,9 @@ def init_model(args, device):
     model_kwargs = filter_kwargs(module.Model, model_kwargs)
     model = module.Model(device, **model_kwargs)
     if args.sp is not None:
-        model.load_state_dict(torch.load(args.sp, map_location=device))
+        state_dict = torch.load(args.sp, map_location=device)
+        if 'model' in state_dict:
+            state_dict = state_dict['model']
+        model.load_state_dict(state_dict)
     model.to(device)
     return model
