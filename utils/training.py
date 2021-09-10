@@ -40,7 +40,8 @@ def process_minibatch(model,
                       device,
                       is_raw,
                       evaluator,
-                      weights):
+                      weights,
+                      return_prediction=False):
     timers('batch2gpu').start()
     timestamps, sample_idx, images = map(lambda x: x.to(device),
                                          (batch['timestamps'],
@@ -72,7 +73,14 @@ def process_minibatch(model,
                                 weights=weights)
     terms = ((y.item() for y in x) for x in terms)
     timers('loss').stop()
-    return loss, terms, tags
+    add_info = tuple()
+    if return_prediction:
+        add_info = (
+            {'prediction': prediction,
+             'flow_ts': flow_ts,
+             'flow_sample_idx': flow_sample_idx,
+             'features': features}, )
+    return (loss, terms, tags) + add_info
 
 
 def train(model,
