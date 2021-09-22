@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from imageio import imwrite
+from multiprocessing import Queue, Pool, cpu_count
 import numpy as np
+from pathlib import Path
 from PIL import ImageDraw, Image
 import sys
 import torch
@@ -118,22 +120,57 @@ def visualize(args, batch, loss, parts, weights, prediction):
     return np.concatenate([image, joined_images, flow_image], axis=0)
 
 
+def choose_output_path(args):
+    path = Path(__file__).resolve().parent.parent
+    model_name = args.model.name
+    path = path/'visualization'/model_name
+    if args.sp is None:
+        path = path/'step_0'
+    else:
+        path = path/Path(args.sp).stem
+    if not path.is_dir():
+        path.mkdir(parents=True)
+    return path
+
+
+def image_writer(image_queue):
+    while True:
+        data = image_queue.get()
+        if data is None:
+            break
+        path, image = data
+        imwrite(path, image)
+
+
 def main():
+    image_queue = Queue()
+    num_writers = cpu_count()
+    worker = Pool(num_writers, image_writer, (image_queue,))
     args = parse_args(sys.argv[1:])
     args.mbs = 1
+    output_dir = choose_output_path(args)
     model = init_model(args, args.device)
+    model.eval()
     loader = get_dataloader(get_valset_params(args))
     evaluator = init_losses(
         args.shape, 1, model, args.device,
         sequence_length=args.prefix_length + args.suffix_length + 1)
     with torch.no_grad():
         for i, batch in tqdm(enumerate(loader), total=len(loader)):
+            output_file_path = output_dir/f'{i:04d}.png'
+            if output_file_path.is_file():
+                continue
             loss, parts, tags, prediction = process_minibatch(
                 model, batch, FakeTimer(), args.device, args.is_raw,
                 evaluator, args.loss_weights, return_prediction=True)
             visualization = visualize(args, batch, loss, parts,
                                       args.loss_weights, prediction)
-            imwrite(f'/tmp/{i:04d}.jpg', visualization)
+            image_queue.put((output_file_path, visualization))
+            # imwrite(output_file_path, visualization)
+    for _ in range(num_writers):
+        image_queue.put(None)
+    worker.close()
+    worker.join()
 
 
 if __name__ == '__main__':
