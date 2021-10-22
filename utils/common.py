@@ -1,8 +1,13 @@
+import copy
 import numpy as np
 import os
+from pathlib import Path
 import re
+import subprocess
+import sys
 import torch
 from typing import Union, Dict
+import yaml
 
 
 def is_inside_docker():
@@ -43,6 +48,72 @@ def cumsum_with_prefix(tensor: torch.Tensor,
     result[0] = 0
     result[1:] = cs
     return result
+
+
+def get_commithash(cwd=None):
+    """Returns a commit hash for the specified directory
+
+    Args:
+        cwd:
+            Directory of the repository.
+
+    Returns:
+        A git commit hash as a string
+    """
+    return subprocess \
+        .check_output('git rev-parse --verify HEAD',
+                      shell=True, cwd=cwd) \
+        .decode() \
+        .strip()
+
+
+def encode_args(args):
+    """Converts arguments to a format that can be written to a text file.
+
+    Converts
+    * pathlib.Path -> string
+    * tuple -> list
+    * torch.device -> string
+
+    Args:
+        args:
+            A SimpleNamespace that contains (key, value) pair representation
+            of the arguments.
+
+    Returns:
+        A string representation of the input arguments.
+    """
+    result = copy.deepcopy(vars(args))
+    for k, v in result.items():
+        if isinstance(v, Path):
+            result[k] = str(v)
+        elif isinstance(v, tuple):
+            result[k] = list(v)
+        elif isinstance(v, torch.device):
+            result[k] = str(v)
+    return yaml.dump(result)
+
+
+def write_params(out_dir, args):
+    """Writes arguments to a file
+
+    Serializes arguments to a out_dir/parameters file.
+
+    Args:
+        out_dir:
+            Path to write arguments.
+        args:
+            A SimpleNamespace that contains (key, value) pair representation
+            of the arguments.
+    """
+    strings = [' '.join(sys.argv),
+               f'commit hash: {get_commithash()}']
+    if 'flownet_path' in vars(args):
+        strings.append(
+                f'model commit hash: {get_commithash(args.flownet_path)}')
+    strings.append(encode_args(args))
+    data2write = '\n'.join(strings)
+    (out_dir/'parameters').write_text(data2write)
 
 
 def to_tensor(data: Union[np.ndarray, Dict]):

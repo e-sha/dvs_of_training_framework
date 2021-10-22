@@ -1,17 +1,15 @@
 from argparse import ArgumentParser
-import copy
 from pathlib import Path
-import subprocess
 import sys
 import torch
 import torch.utils
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 import torch.optim as optim
-import yaml
 
 from utils.dataloader import get_trainset_params, get_valset_params
 from utils.dataloader import get_dataloader, choose_data_path
+from utils.common import write_params
 from utils.hooks.validation import ValidationHook
 from utils.hooks.serialization import SerializationHook
 from utils.loss import init_losses
@@ -26,35 +24,6 @@ from utils.training import train, make_hook_periodic
 
 
 script_dir = Path(__file__).resolve().parent
-
-
-def get_commithash(cwd=None):
-    return subprocess \
-            .check_output('git rev-parse --verify HEAD',
-                          shell=True, cwd=cwd) \
-            .decode() \
-            .strip()
-
-
-def encode_args(args):
-    result = copy.deepcopy(vars(args))
-    for k, v in result.items():
-        if isinstance(v, Path):
-            result[k] = str(v)
-        elif isinstance(v, tuple):
-            result[k] = list(v)
-        elif isinstance(v, torch.device):
-            result[k] = str(v)
-    return yaml.dump(result)
-
-
-def write_params(out_dir, args):
-    model_commit_hash = get_commithash(args.flownet_path)
-    data2write = '\n'.join([' '.join(sys.argv),
-                            f'commit_hash: {get_commithash()}',
-                            f'model_commit_hash: {model_commit_hash}',
-                            encode_args(args)])
-    (out_dir/'parameters').write_text(data2write)
 
 
 def parse_args(args, is_write=True):

@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import sys
 from tqdm import tqdm
 
@@ -13,10 +14,24 @@ except ImportError:
 
 
 try:
-    from train_flownet import get_dataloader, parse_args
+    from train_flownet import get_dataloader
+    from utils.common import write_params
     from utils.dataset import encode_batch, write_encoded_batch, join_batches
+    from utils.options import validate_dataset_args, add_dataset_arguments
+    from utils.options import add_dataset_preprocessing_arguments
 except ImportError:
     raise
+
+
+def parse_args(args, is_write=True):
+    parser = ArgumentParser()
+    args = add_dataset_arguments(parser)
+    args = add_dataset_preprocessing_arguments(parser)
+    args = parse_args(args)
+    args = validate_dataset_args(args)
+    if is_write:
+        write_params(args.model, args)
+    return args
 
 
 def main(args):

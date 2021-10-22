@@ -41,6 +41,74 @@ def add_common_arguments(parser):
     return parser
 
 
+def add_dataset_arguments(parser):
+    parser.add_argument('-cl',
+                        '--collapse_length',
+                        help='step for data augmentation',
+                        dest='cl',
+                        default=6,
+                        type=int,
+                        required=False)
+    parser.add_argument('--height',
+                        help='height of the training images',
+                        dest='height',
+                        default=256,
+                        type=int,
+                        required=False)
+    parser.add_argument('--width',
+                        help='width of the trainging images',
+                        dest='width',
+                        default=256,
+                        type=int,
+                        required=False)
+    parser.add_argument('--min-sequence-length',
+                        help='Minimum sample length in the input data',
+                        dest='min_sequence_length',
+                        default=1,
+                        type=int)
+    parser.add_argument('--max-sequence-length',
+                        help='Maximum sample length in the input data',
+                        dest='max_sequence_length',
+                        default=1,
+                        type=int)
+    parser.add_argument('--prefix-length',
+                        help='Number of elements before predicted '
+                             'in each sample',
+                        dest='prefix_length',
+                        default=0,
+                        type=int)
+    parser.add_argument('--suffix-length',
+                        help='Number of elements after predicted '
+                             'in each sample',
+                        dest='suffix_length',
+                        default=0,
+                        type=int)
+    parser.add_argument('--dynamic-sample-length',
+                        help='flag of dynamic sample length usage',
+                        dest='dynamic_sample_length',
+                        action='store_true')
+    parser.add_argument('--event-representation-depth',
+                        help='Number of elements to represent a single event',
+                        dest='event_representation_depth',
+                        default=9,
+                        type=int)
+    return parser
+
+
+def add_dataset_preprocessing_arguments(parser):
+    parser.add_argument('-o',
+                        '--output',
+                        help='Path to store preprocessed dataset',
+                        type=Path,
+                        required=True)
+    parser.add_argument('-s',
+                        '--size',
+                        help='Number of elements in the preprocessed dataset',
+                        type=int,
+                        default=100000)
+    return parser
+
+
 def add_test_arguments(parser):
     parser = add_common_arguments(parser)
     parser.add_argument('-m',
@@ -70,6 +138,7 @@ def add_test_arguments(parser):
 
 def add_train_arguments(parser):
     parser = add_common_arguments(parser)
+    parser = add_dataset_arguments(parser)
     parser.add_argument('-m',
                         '--model',
                         help='Directory to store learned weights',
@@ -114,25 +183,6 @@ def add_train_arguments(parser):
                         dest='lr',
                         default=1e-3,
                         type=float,
-                        required=False)
-    parser.add_argument('-cl',
-                        '--collapse_length',
-                        help='step for data augmentation',
-                        dest='cl',
-                        default=6,
-                        type=int,
-                        required=False)
-    parser.add_argument('--height',
-                        help='height of the training images',
-                        dest='height',
-                        default=256,
-                        type=int,
-                        required=False)
-    parser.add_argument('--width',
-                        help='width of the trainging images',
-                        dest='width',
-                        default=256,
-                        type=int,
                         required=False)
     parser.add_argument('-vp',
                         '--validation_period',
@@ -190,32 +240,6 @@ def add_train_arguments(parser):
                              'augmenting data on a fly',
                         dest='preprocessed_dataset',
                         action='store_true')
-    parser.add_argument('--min-sequence-length',
-                        help='Minimum sample length in the input data',
-                        dest='min_sequence_length',
-                        default=1,
-                        type=int)
-    parser.add_argument('--max-sequence-length',
-                        help='Maximum sample length in the input data',
-                        dest='max_sequence_length',
-                        default=1,
-                        type=int)
-    parser.add_argument('--prefix-length',
-                        help='Number of elements before predicted '
-                             'in each sample',
-                        dest='prefix_length',
-                        default=0,
-                        type=int)
-    parser.add_argument('--suffix-length',
-                        help='Number of elements after predicted '
-                             'in each sample',
-                        dest='suffix_length',
-                        default=0,
-                        type=int)
-    parser.add_argument('--dynamic-sample-length',
-                        help='flag of dynamic sample length usage',
-                        dest='dynamic_sample_length',
-                        action='store_true')
     parser.add_argument('--max-events-per-batch',
                         help='Maximum number of events in a batch',
                         dest='max_events_per_batch',
@@ -225,11 +249,6 @@ def add_train_arguments(parser):
                         help='Flag to skip validation step',
                         dest='skip_validation',
                         action='store_true')
-    parser.add_argument('--event-representation-depth',
-                        help='Number of elements to represent a single event',
-                        dest='event_representation_depth',
-                        default=9,
-                        type=int)
     return parser
 
 
@@ -238,15 +257,20 @@ def validate_common_args(args):
     return args
 
 
+def validate_dataset_args(args):
+    args.shape = (args.height, args.width)
+    assert args.prefix_length + args.suffix_length < args.max_sequence_length
+    return args
+
+
 def validate_train_args(args):
     args = validate_common_args(args)
-    args.shape = (args.height, args.width)
+    args = validate_dataset_args(args)
     assert args.bs > 0
     assert args.mbs > 0
     assert args.bs % args.mbs == 0
     args.accum_step = args.bs // args.mbs
     assert args.permanent_interval % args.checkpointing_interval == 0
-    assert args.prefix_length + args.suffix_length < args.max_sequence_length
     return args
 
 
@@ -255,15 +279,19 @@ def validate_test_args(args):
     return args
 
 
+def options2dataset_kwargs(parameters):
+    return dict(prefix_length=parameters.prefix_length,
+                suffix_length=parameters.suffix_length,
+                max_sequence_length=parameters.max_sequence_length,
+                dynamic_sample_length=parameters.dynamic_sample_length,
+                event_representation_depth=parameters.
+                event_representation_depth)
+
+
 def options2model_kwargs(parameters):
-    kargs = dict(prefix_length=parameters.prefix_length,
-                 suffix_length=parameters.suffix_length,
-                 max_sequence_length=parameters.max_sequence_length,
-                 dynamic_sample_length=parameters.dynamic_sample_length,
-                 event_representation_depth=parameters.
-                 event_representation_depth)
+    kwargs = options2dataset_kwargs(parameters)
     if parameters.mish:
-        kargs['activation'] = Mish()
+        kwargs['activation'] = Mish()
     else:
-        kargs['activation'] = nn.ReLU()
-    return kargs
+        kwargs['activation'] = nn.ReLU()
+    return kwargs
