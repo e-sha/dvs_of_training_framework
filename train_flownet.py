@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import copy
 from pathlib import Path
 import subprocess
 import sys
@@ -27,17 +28,32 @@ from utils.training import train, make_hook_periodic
 script_dir = Path(__file__).resolve().parent
 
 
-def get_commithash():
+def get_commithash(cwd=None):
     return subprocess \
-            .check_output('git rev-parse --verify HEAD', shell=True) \
+            .check_output('git rev-parse --verify HEAD',
+                          shell=True, cwd=cwd) \
             .decode() \
             .strip()
 
 
+def encode_args(args):
+    result = copy.deepcopy(vars(args))
+    for k, v in result.items():
+        if isinstance(v, Path):
+            result[k] = str(v)
+        elif isinstance(v, tuple):
+            result[k] = list(v)
+        elif isinstance(v, torch.device):
+            result[k] = str(v)
+    return yaml.dump(result)
+
+
 def write_params(out_dir, args):
+    model_commit_hash = get_commithash(args.flownet_path)
     data2write = '\n'.join([' '.join(sys.argv),
                             f'commit_hash: {get_commithash()}',
-                            yaml.dump(vars(args))])
+                            f'model_commit_hash: {model_commit_hash}',
+                            encode_args(args)])
     (out_dir/'parameters').write_text(data2write)
 
 
