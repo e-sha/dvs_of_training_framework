@@ -9,7 +9,8 @@ import torch.optim as optim
 
 from utils.dataloader import get_trainset_params, get_valset_params
 from utils.dataloader import get_dataloader, choose_data_path
-from utils.common import write_params
+from utils.common import collect_execution_info, write_execution_info
+from utils.common import check_execution_info
 from utils.hooks.validation import ValidationHook
 from utils.hooks.serialization import SerializationHook
 from utils.loss import init_losses
@@ -31,8 +32,10 @@ def parse_args(args, is_write=True):
     args = add_train_arguments(parser).parse_args(args)
     args = validate_train_args(args)
     args = choose_data_path(args)
+    execution_info = collect_execution_info(args)
+    check_execution_info(args.model, execution_info, args)
     if is_write:
-        write_params(args.model, args)
+        write_execution_info(args.model, execution_info)
     return args
 
 

@@ -8,14 +8,23 @@ from mish.mish import Mish
 
 
 def add_common_arguments(parser):
+    parser.add_argument('--allow-obsolete-code',
+                        help='Do not throw an error if some data was generated'
+                             'for another version of the repository',
+                        action='store_true')
+    parser.add_argument('--allow-arguments-change',
+                        help='Do not throw an error if some data was generated'
+                             'for another set of parameters',
+                        action='store_true')
+    return parser
+
+
+def add_model_arguments(parser):
     parser.add_argument('--flownet_path',
                         help='relative path to a model to train',
                         default=Path('EV_FlowNet'),
                         type=Path,
                         required=False)
-    parser.add_argument('--ev_images',
-                        help='use event images as the input to the network',
-                        action='store_true')
     parser.add_argument('--mish',
                         help='use event images as the input to the network',
                         action='store_true')
@@ -42,6 +51,9 @@ def add_common_arguments(parser):
 
 
 def add_dataset_arguments(parser):
+    parser.add_argument('--ev_images',
+                        help='use event images as the input to the network',
+                        action='store_true')
     parser.add_argument('-cl',
                         '--collapse_length',
                         help='step for data augmentation',
@@ -95,6 +107,22 @@ def add_dataset_arguments(parser):
     return parser
 
 
+def add_dataloader_arguments(parser):
+    parser.add_argument('-mbs',
+                        '--micro_batch_size',
+                        help='batch size for a single forward-backward pass',
+                        dest='mbs',
+                        default=32,
+                        type=int,
+                        required=False)
+    parser.add_argument('--num_workers',
+                        help='Number of workers to read data',
+                        dest='num_workers',
+                        default=len(os.sched_getaffinity(0)),
+                        type=int)
+    return parser
+
+
 def add_dataset_preprocessing_arguments(parser):
     parser.add_argument('-o',
                         '--output',
@@ -106,11 +134,16 @@ def add_dataset_preprocessing_arguments(parser):
                         help='Number of elements in the preprocessed dataset',
                         type=int,
                         default=100000)
+    parser.add_argument('--samples-per-file',
+                        help='Number of samples to store in a file',
+                        type=int,
+                        default=1000)
     return parser
 
 
 def add_test_arguments(parser):
     parser = add_common_arguments(parser)
+    parser = add_model_arguments(parser)
     parser.add_argument('-m',
                         '--model',
                         help='Path to the learned weights',
@@ -138,7 +171,9 @@ def add_test_arguments(parser):
 
 def add_train_arguments(parser):
     parser = add_common_arguments(parser)
+    parser = add_model_arguments(parser)
     parser = add_dataset_arguments(parser)
+    parser = add_dataloader_arguments(parser)
     parser.add_argument('-m',
                         '--model',
                         help='Directory to store learned weights',
@@ -149,13 +184,6 @@ def add_train_arguments(parser):
                         dest='half_life',
                         default=100000,
                         type=float,
-                        required=False)
-    parser.add_argument('-mbs',
-                        '--micro_batch_size',
-                        help='batch size for a single forward-backward pass',
-                        dest='mbs',
-                        default=32,
-                        type=int,
                         required=False)
     parser.add_argument('-sp',
                         '--starting_point',
@@ -226,11 +254,6 @@ def add_train_arguments(parser):
                         help='Print information from timers',
                         dest='timers',
                         action='store_true')
-    parser.add_argument('--num_workers',
-                        help='Number of workers to read data',
-                        dest='num_workers',
-                        default=len(os.sched_getaffinity(0)),
-                        type=int)
     parser.add_argument('--do_not_continue',
                         help='Do not continue training from checkpoints',
                         dest='do_not_continue',
@@ -252,19 +275,14 @@ def add_train_arguments(parser):
     return parser
 
 
-def validate_common_args(args):
-    args.is_raw = not args.ev_images
-    return args
-
-
 def validate_dataset_args(args):
+    args.is_raw = not args.ev_images
     args.shape = (args.height, args.width)
     assert args.prefix_length + args.suffix_length < args.max_sequence_length
     return args
 
 
 def validate_train_args(args):
-    args = validate_common_args(args)
     args = validate_dataset_args(args)
     assert args.bs > 0
     assert args.mbs > 0
@@ -275,7 +293,6 @@ def validate_train_args(args):
 
 
 def validate_test_args(args):
-    args = validate_common_args(args)
     return args
 
 
