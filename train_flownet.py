@@ -32,6 +32,10 @@ def parse_args(args, is_write=True):
     args = add_train_arguments(parser).parse_args(args)
     args = validate_train_args(args)
     args = choose_data_path(args)
+
+    args.model.mkdir(exist_ok=True, parents=True)
+    args.log_path = args.model/'log'
+
     execution_info = collect_execution_info(args)
     check_execution_info(args.model, execution_info, args)
     if is_write:

@@ -11,14 +11,21 @@ script_dir = Path(__file__).resolve().parent.parent
 
 
 def choose_data_path(args):
-    args.model.mkdir(exist_ok=True, parents=True)
+    """ Chooses path with the input data
+
+    Args:
+        args:
+            A key-value storage of the arguments.
+
+    Returns:
+        An updated arguments with a data_path key is set
+    """
     if is_inside_docker():
         data_path = Path('/data/training/mvsec')
     else:
         base_dir = (script_dir/'..').resolve()
         data_path = base_dir/'data'/'training'/'mvsec'
     args.data_path = data_path
-    args.log_path = args.model/'log'
     return args
 
 
@@ -43,7 +50,8 @@ def get_trainset_params(args):
     params.collapse_length = args.cl
     params.shuffle = True
     params.infinite = True
-    params.preprocessed_dataset = args.preprocessed_dataset
+    params.preprocessed_dataset = 'preprocessed_dataset' in args and \
+                                  args.preprocessed_dataset
     return params
 
 

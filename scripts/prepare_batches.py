@@ -19,6 +19,7 @@ try:
     from utils.common import write_execution_info, collect_execution_info
     from utils.common import check_execution_info
     from utils.dataset import encode_batch, write_encoded_batch, join_batches
+    from utils.dataloader import choose_data_path
     from utils.options import validate_dataset_args, add_dataset_arguments
     from utils.options import add_dataset_preprocessing_arguments
     from utils.options import add_dataloader_arguments, add_common_arguments
@@ -34,6 +35,10 @@ def parse_args(args, is_write=True):
     parser = add_dataset_preprocessing_arguments(parser)
     args = parser.parse_args(args)
     args = validate_dataset_args(args)
+
+    args.output.mkdir(exist_ok=True, parents=True)
+    args = choose_data_path(args)
+
     execution_info = collect_execution_info(args)
     check_execution_info(args.output, execution_info, args)
     args.output.mkdir(exist_ok=True, parents=True)
@@ -56,12 +61,10 @@ def main(args):
     j = 0
     initial = num_written // args.mbs
     total = (args.size - num_written) // args.mbs + initial
-    for i, (events, timestamps, sample_idx, images, augmentation_params) \
-            in tqdm(enumerate(loader), initial=initial, total=total):
+    for i, batch in tqdm(enumerate(loader), initial=initial, total=total):
         if num_written >= args.size:
             break
-        encoded_batches.append(encode_batch(events, timestamps, sample_idx,
-                                            images, augmentation_params))
+        encoded_batches.append(encode_batch(**batch))
         num_written += \
             len(encoded_batches[-1]['events']['elements_per_sample'])
         is_last = num_written >= args.size
