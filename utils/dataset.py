@@ -1,7 +1,9 @@
+import copy
 import h5py
 from pathlib import Path
 import numpy as np
 import random
+import shutil
 import torch
 import torch.utils.data
 import typing
@@ -562,6 +564,85 @@ class DatasetImpl:
                 image_ts,
                 images,
                 (idx, seq_length, k, box, angle, is_flip))
+
+
+class FileLoader:
+    """Loads files from a remote storage to the cache.
+
+    To use:
+    # loads the first 2 elements: 0.hdf5, 1.hdf5
+    >>> loader = FileLoader(Path('/storage').glob('*.hdf5'), Path('/tmp'), 2)
+    >>> loader.next() # returns the first element
+    /tmp/0.hdf5
+    >>> loader.next() # returns the second element. The first
+                      # one is still stored
+    /tmp/1.hdf5
+    >>> loader.step() # removes the first element from the cache:
+                      # 1.hdf5, 2.hdf5
+    >>> loader.step() # removes the second element: 2.hdf5, 3.hdf
+    >>> loader.step() # error. The top element was not used (the second)
+    >>> loader.next()
+    /tmp/2.hdf5
+    >>> loader.next()
+    /tmp/3.hdf5
+    >>> loader.next() # error. 4.hdf5 is not in the cache.
+    """
+
+    def __init__(self,
+                 remote_files: list[Path],
+                 cache_dir: Path,
+                 num_files_to_cache: int = 5):
+        self.cached = []
+        self.remote_files = copy.deepcopy(remote_files)
+        self.cache_dir = cache_dir
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+        for i in range(min(num_files_to_cache, len(self.remote_files))):
+            self.cached.append(self._load_file(i))
+        self.cached_end = len(self.cached)
+        self.num_files_to_cache = len(self.cached)
+        self.index = 0
+
+    def _load_file(self, index):
+        """Copy a file specified by the index.
+
+        Args:
+            index:
+                An index of the file in the self.remote_files list
+
+        Return:
+            A path of the cached file
+        """
+        remote = self.remote_files[index]
+        filename = remote.name
+        cached = self.cache_dir/filename
+        shutil.copyfile(remote, cached)
+        return cached
+
+    def next(self):
+        """ Returns path of the next cached element.
+        """
+        assert self.index < self.num_files_to_cache, \
+            f'Trying to get non-cached file. {self.num_files_to_cache} ' \
+            f'files are cached, but {self.index + 1}-th file is requested'
+        self.index += 1
+        return self.cached[self.index - 1]
+
+    def step(self):
+        """ Performs a step of the sliding window.
+
+        Removes the first element and loads the next non-cached one.
+        """
+        assert self.index > 0, 'The first cached file should be requested ' \
+                               'before making a step'
+        # if all files are cached
+        if len(self.remote_files) == self.num_files_to_cache:
+            self.cached = self.cached[1:] + [self.cached[0]]
+        else:
+            self.cached[0].unlink()
+            self.cached = self.cached[1:]
+            self.cached.append(self._load_file(self.cached_end))
+            self.cached_end = (self.cached_end + 1) % len(self.remote_files)
+        self.index -= 1
 
 
 class PreprocessedDataloader:
