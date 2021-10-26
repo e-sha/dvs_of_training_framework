@@ -593,6 +593,8 @@ class PreprocessedDataloader:
         """
         self.batch_size = batch_size
         self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
+        assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
+                                    '(on .hdf5 files)'
         self.file_index = 0
         self.sample_index = 0
         self.num_samples_per_file = []

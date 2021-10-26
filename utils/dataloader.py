@@ -50,8 +50,7 @@ def get_trainset_params(args):
     params.collapse_length = args.cl
     params.shuffle = True
     params.infinite = True
-    params.preprocessed_dataset = 'preprocessed_dataset' in args and \
-                                  args.preprocessed_dataset
+    params.preprocessed_dataset_path = args.preprocessed_dataset_path
     return params
 
 
@@ -62,7 +61,7 @@ def get_valset_params(args):
     params.collapse_length = 1
     params.shuffle = False
     params.infinite = False
-    params.preprocessed_dataset = False
+    params.preprocessed_dataset_path = None
     return params
 
 
@@ -81,10 +80,9 @@ def get_dataset(params):
 
 
 def get_dataloader(params):
-    if params.preprocessed_dataset:
-        path = params.path.parent / (params.path.name + '_preprocessed')
+    if params.preprocessed_dataset_path is not None:
         return PreprocessedDataloader(
-            path=path,
+            path=params.preprocessed_dataset_path,
             batch_size=params.batch_size)
     loader_kwargs = {}
     if not params.infinite:

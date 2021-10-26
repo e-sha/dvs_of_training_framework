@@ -258,11 +258,11 @@ def add_train_arguments(parser):
                         help='Do not continue training from checkpoints',
                         dest='do_not_continue',
                         action='store_true')
-    parser.add_argument('--preprocessed-dataset',
-                        help='Use preprocessed dataset instead of '
-                             'augmenting data on a fly',
-                        dest='preprocessed_dataset',
-                        action='store_true')
+    parser.add_argument('--preprocessed-dataset-path',
+                        help='Path to the preprocessed dataset',
+                        dest='preprocessed_dataset_path',
+                        default=None,
+                        type=Path)
     parser.add_argument('--max-events-per-batch',
                         help='Maximum number of events in a batch',
                         dest='max_events_per_batch',
