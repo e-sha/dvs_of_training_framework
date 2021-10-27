@@ -272,6 +272,12 @@ def add_train_arguments(parser):
                         help='Flag to skip validation step',
                         dest='skip_validation',
                         action='store_true')
+    parser.add_argument('--cache-dir',
+                        help='Path to a cache dir with faster access to files '
+                             'like SSD or VM disk for Google Colab',
+                        dest='cache_dir',
+                        default=None,
+                        type=Path)
     return parser
 
 

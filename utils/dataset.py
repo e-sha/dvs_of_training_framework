@@ -10,6 +10,7 @@ from EV_FlowNet.net import compute_event_image
 from .common import cumsum_with_prefix, to_tensor
 from .data import EventCrop, ImageRandomCrop
 from .data import RandomRotation, ImageCentralCrop
+from .file_iterators import FileIterator, FileIteratorWithCache
 
 
 Augmentation_t = typing.Dict[str, torch.Tensor]
@@ -581,7 +582,8 @@ class PreprocessedDataloader:
 
     def __init__(self,
                  path: Path,
-                 batch_size: int):
+                 batch_size: int,
+                 cache_dir=None):
         """Inits PreprocessedDataloader with path to preprocessed dataset
         and batch size
 
@@ -590,19 +592,34 @@ class PreprocessedDataloader:
                 A path to the preprocessed dataset
             batch_size:
                 Number of samples per batch
+            cache_dir:
+                A directory to cache the preprocessed dataset.
         """
         self.batch_size = batch_size
         self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
         assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
                                     '(on .hdf5 files)'
-        self.file_index = 0
+        self.iterator = FileIterator(self.files) if cache_dir is None else \
+            FileIteratorWithCache(self.files, cache_dir)
         self.sample_index = 0
-        self.num_samples_per_file = []
+        num_samples_per_file = []
         for file in self.files:
-            with h5py.File(file, 'r') as f:
-                self.num_samples_per_file.append(len(
-                    f['events']['elements_per_sample']))
-        self.length = sum(self.num_samples_per_file)
+            num_samples_per_file.append(self._file2size(file))
+        self.length = sum(num_samples_per_file)
+        self.current_file = self.iterator.next()
+
+    def _file2size(self, filename):
+        """Returns number of samples in a file
+
+        Args:
+            filename:
+                A name of the file with samples
+
+        Returns:
+            Number of samples in a file
+        """
+        with h5py.File(filename, 'r') as f:
+            return len(f['events']['elements_per_sample'])
 
     def set_index(self,
                   idx: int):
@@ -612,12 +629,18 @@ class PreprocessedDataloader:
             idx:
                 An index of the sample to start
         """
-        idx = idx % self.length
-        cs = torch.cumsum(torch.tensor(self.num_samples_per_file), 0)
-        # cs[i-1] <= idx < cs[i]
-        self.file_index = torch.searchsorted(cs, idx + 1).item()
-        self.sample_index = idx if self.file_index == 0 \
-            else idx - cs[self.file_index - 1].item()
+        self.sample_index = idx % self.length
+        self.current_file.release()
+        self.iterator.reset()
+        self.current_file = self.iterator.next()
+        while True:
+            file_size = self._file2size(self.current_file.name)
+            if self.sample_index < file_size:
+                break
+            self.sample_index -= file_size
+            self.current_file.release()
+            self.iterator.step()
+            self.current_file = self.iterator.next()
 
     def __len__(self):
         """Returns number of samples in the preprocessed dataset"""
@@ -632,12 +655,11 @@ class PreprocessedDataloader:
         num2read = self.batch_size
         batches = []
         while num2read > 0:
-            left = self.num_samples_per_file[self.file_index] - \
-                    self.sample_index
+            left = self._file2size(self.current_file.name) - self.sample_index
             cur_num2read = min(left, num2read)
             next_sample_index = self.sample_index + cur_num2read
             if cur_num2read > 0:
-                with h5py.File(self.files[self.file_index], 'r') as f:
+                with h5py.File(self.current_file.name, 'r') as f:
                     events_per_element = torch.tensor(
                             f['events']['events_per_element'])
                     elements_per_sample = torch.tensor(
@@ -649,7 +671,9 @@ class PreprocessedDataloader:
             self.sample_index = next_sample_index
             num2read -= cur_num2read
             if num2read > 0:
-                self.file_index = (self.file_index + 1) % len(self.files)
+                self.current_file.release()
+                self.iterator.step()
+                self.current_file = self.iterator.next()
                 self.sample_index = 0
         encoded_batch = join_batches(batches)
         return decode_batch(encoded_batch)
