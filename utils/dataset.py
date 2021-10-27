@@ -2,8 +2,10 @@ import copy
 import h5py
 from pathlib import Path
 import numpy as np
+import queue
 import random
 import shutil
+import threading
 import torch
 import torch.utils.data
 import typing
@@ -569,6 +571,8 @@ class DatasetImpl:
 class FileLoader:
     """Loads files from a remote storage to the cache.
 
+    The code doesn't remove previously cached files.
+
     To use:
     # loads the first 2 elements: 0.hdf5, 1.hdf5
     >>> loader = FileLoader(Path('/storage').glob('*.hdf5'), Path('/tmp'), 2)
@@ -589,60 +593,49 @@ class FileLoader:
     """
 
     def __init__(self,
-                 remote_files: list[Path],
-                 cache_dir: Path,
-                 num_files_to_cache: int = 5):
-        self.cached = []
+                 remote_files,
+                 cache_dir,
+                 num_files_to_cache=5):
+        def thread_function(cache_dir, request_queue, response_queue):
+            cache_dir.mkdir(exist_ok=True, parents=True)
+            while True:
+                remote = request_queue.get()
+                if remote is None:
+                    break
+                filename = remote.name
+                cached = cache_dir/filename
+                shutil.copyfile(remote, cached)
+                response_queue.put(cached)
+
         self.remote_files = copy.deepcopy(remote_files)
-        self.cache_dir = cache_dir
-        self.cache_dir.mkdir(exist_ok=True, parents=True)
+        self.request_queue = queue.Queue()
+        self.response_queue = queue.Queue()
         for i in range(min(num_files_to_cache, len(self.remote_files))):
-            self.cached.append(self._load_file(i))
-        self.cached_end = len(self.cached)
-        self.num_files_to_cache = len(self.cached)
-        self.index = 0
-
-    def _load_file(self, index):
-        """Copy a file specified by the index.
-
-        Args:
-            index:
-                An index of the file in the self.remote_files list
-
-        Return:
-            A path of the cached file
-        """
-        remote = self.remote_files[index]
-        filename = remote.name
-        cached = self.cache_dir/filename
-        shutil.copyfile(remote, cached)
-        return cached
+            self.request_queue.put(self.remote_files[i])
+        self.read_thread = threading.Thread(target=thread_function,
+                                            args=(cache_dir,
+                                                  self.request_queue,
+                                                  self.response_queue))
+        self.read_thread.start()
+        self.cached_end = i % len(self.remote_files)
+        self.num_left = self.cached_end
 
     def next(self):
         """ Returns path of the next cached element.
         """
-        assert self.index < self.num_files_to_cache, \
-            f'Trying to get non-cached file. {self.num_files_to_cache} ' \
-            f'files are cached, but {self.index + 1}-th file is requested'
-        self.index += 1
-        return self.cached[self.index - 1]
+        # it prevents deadlock
+        assert self.num_left > 0, "No cached files left"
+        self.num_left -= 1
+        return self.response_queue.get()
 
     def step(self):
         """ Performs a step of the sliding window.
 
-        Removes the first element and loads the next non-cached one.
+        Loads the next non-cached one.
         """
-        assert self.index > 0, 'The first cached file should be requested ' \
-                               'before making a step'
-        # if all files are cached
-        if len(self.remote_files) == self.num_files_to_cache:
-            self.cached = self.cached[1:] + [self.cached[0]]
-        else:
-            self.cached[0].unlink()
-            self.cached = self.cached[1:]
-            self.cached.append(self._load_file(self.cached_end))
-            self.cached_end = (self.cached_end + 1) % len(self.remote_files)
-        self.index -= 1
+        self.request_queue.put(self.remote_files[self.cached_end])
+        self.cached_end = (self.cached_end + 1) % len(self.remote_files)
+        self.num_left += 1
 
 
 class PreprocessedDataloader:
