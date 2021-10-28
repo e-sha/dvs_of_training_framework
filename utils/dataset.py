@@ -10,7 +10,7 @@ from EV_FlowNet.net import compute_event_image
 from .common import cumsum_with_prefix, to_tensor
 from .data import EventCrop, ImageRandomCrop
 from .data import RandomRotation, ImageCentralCrop
-from .file_iterators import FileIterator, FileIteratorWithCache
+from .file_iterators import create_file_iterator
 
 
 Augmentation_t = typing.Dict[str, torch.Tensor]
@@ -599,8 +599,7 @@ class PreprocessedDataloader:
         self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
         assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
                                     '(on .hdf5 files)'
-        self.iterator = FileIterator(self.files) if cache_dir is None else \
-            FileIteratorWithCache(self.files, cache_dir)
+        self.iterator = create_file_iterator(self.files, cache_dir)
         self.sample_index = 0
         num_samples_per_file = []
         for file in self.files:

@@ -39,6 +39,20 @@ class ReleasableFile:
         self.filename.unlink()
 
 
+def create_file_iterator(files,
+                         cache_dir=None,
+                         num_files_in_cache=5):
+    files = list(Path(f) for f in files)
+    if cache_dir is None:
+        return FileIterator(files)
+    iterator = FileIteratorWithCache(files, cache_dir, num_files_in_cache)
+    if num_files_in_cache < len(files):
+        return iterator
+    # if we can cache all files then cache them and use the basic FileIterator
+    new_files = [iterator.next() for _ in files]
+    return FileIterator(new_files)
+
+
 class FileIterator:
     """Allows iteration over a list of files
 
@@ -118,10 +132,11 @@ class FileIteratorWithCache:
         self.read_thread.start()
 
     def _init_cache(self, num_files_to_cache):
-        for i in range(min(num_files_to_cache, len(self.remote_files))):
+        num_files_to_cache = min(num_files_to_cache, len(self.remote_files))
+        for i in range(num_files_to_cache):
             self.request_queue.put(self.remote_files[i])
-        self.num_files_to_cache = i
-        self.num_left = i
+        self.num_left = num_files_to_cache
+        self.num_files_to_cache = num_files_to_cache
         self.cached_end = i % len(self.remote_files)
 
     def next(self):
