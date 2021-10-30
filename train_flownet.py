@@ -85,7 +85,9 @@ def construct_train_tools(args, model, passed_steps=0):
                              'weight_decay': args.wdw}]
 
     def pred_scheduler(step):
-        return 2 ** (-step / args.half_life)
+        if step < args.num_warmup_steps:
+            return step / args.num_warmup_steps
+        return 2 ** (-(step - args.num_warmup_steps) / args.half_life)
 
     def repr_scheduler(step):
         if step > representation_start:

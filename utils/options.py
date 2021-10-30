@@ -205,6 +205,12 @@ def add_train_arguments(parser):
                         default=1000000,
                         type=int,
                         required=False)
+    parser.add_argument('--num-warmup-steps',
+                        help='number of steps to perform warm up',
+                        dest='num_warmup_steps',
+                        default=0,
+                        type=int,
+                        required=False)
     parser.add_argument('-lr',
                         '--learning_rate',
                         help='initial learning rate',
