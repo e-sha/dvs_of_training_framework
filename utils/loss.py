@@ -11,6 +11,11 @@ if torch_version[0] > 1 or torch_version[0] == 1 and torch_version[1] > 2:
 else:
     grid_sample = F.grid_sample
 
+if torch_version[0] > 1 or torch_version[0] == 1 and torch_version[1] >= 10:
+    meshgrid = partial(torch.meshgrid, indexing='ij')
+else:
+    meshgrid = torch.meshgrid
+
 
 def interpolate(img, shape):
     return F.interpolate(img, size=shape, mode='bilinear', align_corners=True)
@@ -35,12 +40,12 @@ class Loss:
         self.N = batch_size
         self.H, self.W = pred_shape
 
-        grid = torch.meshgrid(torch.arange(self.H,
-                                           dtype=torch.float32,
-                                           device=device),
-                              torch.arange(self.W,
-                                           dtype=torch.float32,
-                                           device=device))
+        grid = meshgrid(torch.arange(self.H,
+                                     dtype=torch.float32,
+                                     device=device),
+                        torch.arange(self.W,
+                                     dtype=torch.float32,
+                                     device=device))
         # 2, H, W <-- (x, y)
         grid = torch.cat(tuple(map(lambda x: x.unsqueeze(0),
                                    grid[::-1])), dim=0)

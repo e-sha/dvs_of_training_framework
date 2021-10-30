@@ -230,7 +230,8 @@ def check_execution_info(out_dir, execution_info, args):
             current_args = execution_info2args(execution_info)
             keys = set(current_args) & set(previous_args)
             for k in set(keys) - {'allow_arguments_change',
-                                  'allow_obsolete_code'}:
+                                  'allow_obsolete_code',
+                                  'cache-dir'}:
                 assert previous_args[k] == current_args[k], \
                     f'Stored and current value for argument {k} are ' \
                     f'different ({previous_args[k]} vs {current_args[k]})'
