@@ -19,7 +19,8 @@ def test_trainloop():
                            optimizer='ADAM',
                            lr=0.01,
                            half_life=1,
-                           device=torch.device('cpu'))
+                           device=torch.device('cpu'),
+                           num_warmup_steps=0)
     data_path = test_path/'data/seq'
     shape = [256, 256]
     dataset = DatasetImpl(path=data_path,
@@ -60,7 +61,8 @@ def test_validation():
                            optimizer='ADAM',
                            lr=0.01,
                            half_life=1,
-                           device=torch.device('cpu'))
+                           device=torch.device('cpu'),
+                           num_warmup_steps=0)
     data_path = test_path/'data/seq'
     shape = [256, 256]
     dataset = DatasetImpl(path=data_path,

@@ -333,7 +333,8 @@ class TestDatasetEncoding:
                                optimizer='ADAM',
                                lr=0.01,
                                half_life=1,
-                               device=torch.device('cpu'))
+                               device=torch.device('cpu'),
+                               num_warmup_steps=0)
         model = init_model(
                 SimpleNamespace(flownet_path=test_path.parent/'EV_FlowNet',
                                 mish=False, sp=None, prefix_length=0,
