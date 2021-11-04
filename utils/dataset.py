@@ -317,26 +317,88 @@ def read_encoded_batch(descriptor: h5py.File,
     return read_data(descriptor, ranges)
 
 
-def encode_quantized_batch(batch):
+def encode_quantized_batch(batch) -> typing.Dict:
+    """Encodes quantized batch of samples
+
+    The input is a tensor of size BxCxWxH and the output is a dictionary with
+    keys {'data', 'channels_per_sample'}. data is a tensor of size (B*C)xWxH
+    and channels_per_sample is a 1d tensor of size B.
+
+    Args:
+        batch:
+            An input quantized batch of samples.
+
+    Returns:
+        The encoded batch.
+    """
     return None
 
 
-def decode_quantized_batch(batch):
+def decode_quantized_batch(batch: torch.Tensor) -> torch.Tensor:
+    """Decodes quantized batch of samples
+
+    The input is a dictionary with keys {'data', 'channels_per_sample'} as
+    produces by encode_quantized_batch and the output is a tensor of size
+    BxCxWxH.
+
+    Args:
+        batch:
+            An input encoded quantized batch.
+
+    Returns:
+        The decoded batch of samples.
+    """
     return None
 
 
-def join_encoded_quantized_batches(batches):
+def join_encoded_quantized_batches(batches: typing.Dict) -> typing.Dict:
+    """Constructs encoded quantized batch from list of encoded quantized
+    batches.
+
+    Args:
+        batches:
+            An iterable with encoded quantized batches.
+
+    Returns:
+        The joined encoded quantized batch.
+    """
     return None
 
 
-def write_encoded_quantized_batch(batch):
+def write_encoded_quantized_batch(path: Path,
+                                  batch: typing.Dict):
+    """Writes encoded quantized batch to a file in hdf5 file
+
+    Args:
+        path:
+            A file path to write
+        batch:
+            Same as an output of encode_batch
+    """
     return None
 
 
 def read_encoded_quantized_batch(descriptor: h5py.File,
                                  channels_per_sample: torch.Tensor,
                                  sample_begin: int,
-                                 sample_end):
+                                 sample_end) -> typing.Dict:
+    """Reads batch of encoded quantized samples in range
+    [sample_begin, sample_end).
+
+    Args:
+        descriptor:
+            A descriptor of an open hdf5 file with samples.
+        channels_per_sample:
+            A tensor describing number of channels in each sample in the file.
+        sample_begin:
+            Index of the first sample in the batch.
+        sample_end:
+            Index of the next to the last sample in the batch.
+
+    Returns:
+        An encoded quantized batch of samples from sample_begin to
+        sample_end-1.
+    """
     return None
 
 
