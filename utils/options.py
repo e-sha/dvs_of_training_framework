@@ -141,6 +141,21 @@ def add_dataset_preprocessing_arguments(parser):
     return parser
 
 
+def add_preprocessed_dataset_arguments(parser):
+    parser.add_argument('--preprocessed-dataset-path',
+                        help='Path to the preprocessed dataset',
+                        dest='preprocessed_dataset_path',
+                        default=None,
+                        type=Path)
+    parser.add_argument('--cache-dir',
+                        help='Path to a cache dir with faster access to files '
+                             'like SSD or VM disk for Google Colab',
+                        dest='cache_dir',
+                        default=None,
+                        type=Path)
+    return parser
+
+
 def add_test_arguments(parser):
     parser = add_common_arguments(parser)
     parser = add_model_arguments(parser)
@@ -264,11 +279,6 @@ def add_train_arguments(parser):
                         help='Do not continue training from checkpoints',
                         dest='do_not_continue',
                         action='store_true')
-    parser.add_argument('--preprocessed-dataset-path',
-                        help='Path to the preprocessed dataset',
-                        dest='preprocessed_dataset_path',
-                        default=None,
-                        type=Path)
     parser.add_argument('--max-events-per-batch',
                         help='Maximum number of events in a batch',
                         dest='max_events_per_batch',
@@ -278,12 +288,6 @@ def add_train_arguments(parser):
                         help='Flag to skip validation step',
                         dest='skip_validation',
                         action='store_true')
-    parser.add_argument('--cache-dir',
-                        help='Path to a cache dir with faster access to files '
-                             'like SSD or VM disk for Google Colab',
-                        dest='cache_dir',
-                        default=None,
-                        type=Path)
     return parser
 
 
@@ -291,6 +295,11 @@ def validate_dataset_args(args):
     args.is_raw = not args.ev_images
     args.shape = (args.height, args.width)
     assert args.prefix_length + args.suffix_length < args.max_sequence_length
+    return args
+
+
+def validate_quantization_args(args):
+    assert args.preprocessed_dataset_path is not None
     return args
 
 

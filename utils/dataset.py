@@ -317,6 +317,29 @@ def read_encoded_batch(descriptor: h5py.File,
     return read_data(descriptor, ranges)
 
 
+def encode_quantized_batch(batch):
+    return None
+
+
+def decode_quantized_batch(batch):
+    return None
+
+
+def join_encoded_quantized_batches(batches):
+    return None
+
+
+def write_encoded_quantized_batch(batch):
+    return None
+
+
+def read_encoded_quantized_batch(descriptor: h5py.File,
+                                 channels_per_sample: torch.Tensor,
+                                 sample_begin: int,
+                                 sample_end):
+    return None
+
+
 class IterableDataset(torch.utils.data.IterableDataset):
     def __init__(self, **kwargs):
         super().__init__()

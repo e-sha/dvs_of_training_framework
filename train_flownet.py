@@ -18,6 +18,7 @@ from utils.model import init_model
 from utils.monitors.gpumonitor import GPUMonitor
 from utils.options import add_train_arguments
 from utils.options import validate_train_args
+from utils.options import add_preprocessed_dataset_arguments
 from utils.profiling import Profiler
 from utils.serializer import Serializer
 from utils.timer import SynchronizedWallClockTimer, FakeTimer
@@ -30,6 +31,7 @@ script_dir = Path(__file__).resolve().parent
 def parse_args(args, is_write=True):
     parser = ArgumentParser()
     args = add_train_arguments(parser).parse_args(args)
+    args = add_preprocessed_dataset_arguments(args)
     args = validate_train_args(args)
     args = choose_data_path(args)
 
