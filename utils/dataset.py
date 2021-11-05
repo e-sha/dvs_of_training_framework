@@ -317,7 +317,7 @@ def read_encoded_batch(descriptor: h5py.File,
     return read_data(descriptor, ranges)
 
 
-def encode_quantized_batch(batch) -> typing.Dict:
+def encode_quantized_batch(batch: torch.Tensor) -> typing.Dict:
     """Encodes quantized batch of samples
 
     The input is a tensor of size BxCxWxH and the output is a dictionary with
@@ -334,7 +334,7 @@ def encode_quantized_batch(batch) -> typing.Dict:
     return None
 
 
-def decode_quantized_batch(batch: torch.Tensor) -> torch.Tensor:
+def decode_quantized_batch(batch: typing.Dict) -> torch.Tensor:
     """Decodes quantized batch of samples
 
     The input is a dictionary with keys {'data', 'channels_per_sample'} as
