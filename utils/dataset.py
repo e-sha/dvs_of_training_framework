@@ -317,29 +317,40 @@ def read_encoded_batch(descriptor: h5py.File,
     return read_data(descriptor, ranges)
 
 
-def encode_quantized_batch(batch: torch.Tensor) -> typing.Dict:
-    """Encodes quantized batch of samples
-
-    The input is a tensor of size BxCxWxH and the output is a dictionary with
-    keys {'data', 'channels_per_sample'}. data is a tensor of size (B*C)xWxH
-    and channels_per_sample is a 1d tensor of size B.
+def encode_quantized_batch(batch: typing.Dict) -> typing.Dict:
+    """Encodes a quantized batch to decrease storage space
 
     Args:
         batch:
-            An input quantized batch of samples.
+            A dictionary representation of the quantized batch with keys
+            (data, timestamps, sample_idx, images, augmentation_params, size).
+            data is torch.Tensor representation of the events of size BxCxWxH.
+            timestamps are timestamps of images in the batch
+            sample_idx are sample indices of the timestamps and images
+            images are images at the given timestamps
+            augmentation_params are Augmentation parameters as a dictionary
+            size is a number of samples in the batch
 
     Returns:
-        The encoded batch.
+        A dictionary representation of the encoded quantized batch with keys
+        (data, channels_per_sample, timestamps, images, augmentation_params).
+        data is a torch.Tensor representation of the quantized batch of size
+        (B*C)xWxH as torch.float32;
+        channels_per_sample is torch.Tensor representation of number of
+        channels in each sample. torch.long;
+        timestamps is one-dimensional float tensor representing
+        timestamps of images;
+        sample_idx is one-dimensional short tensor representing;
+        images is a uint8 tensor representing images;
+        augmentation_params is dictionary of augmentation parameters.
     """
     return None
 
 
-def decode_quantized_batch(batch: typing.Dict) -> torch.Tensor:
-    """Decodes quantized batch of samples
+def decode_quantized_batch(batch: typing.Dict) -> typing.Dict:
+    """Decodes quantized batch of samples.
 
-    The input is a dictionary with keys {'data', 'channels_per_sample'} as
-    produces by encode_quantized_batch and the output is a tensor of size
-    BxCxWxH.
+    Performs inverse operation to encode_quantized_batch.
 
     Args:
         batch:
@@ -358,6 +369,7 @@ def join_encoded_quantized_batches(batches: typing.Dict) -> typing.Dict:
     Args:
         batches:
             An iterable with encoded quantized batches.
+            For more details see encode_quantized_batch.
 
     Returns:
         The joined encoded quantized batch.

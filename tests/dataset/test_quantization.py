@@ -12,18 +12,82 @@ from utils.dataset import write_encoded_quantized_batch
 
 class TestQuantized:
     def setup_class(self):
-        self.decoded_batch = torch.tensor([0, 1, 2, 3, 4, 5],
-                                          dtype=torch.float32) \
-            .view(-1, 2, 1, 1).tile(1, 1, 3, 4)
+        self.decoded_batch = {
+            'data': torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.float32)
+                         .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
+            'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
+                                        0.02, 0.04, 0.06, 0.08],
+                                       dtype=torch.float32),
+            'sample_idx': torch.tensor([0, 0, 0, 1, 1, 2, 2, 2, 2, 2],
+                                       dtype=torch.long),
+            'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
+                                   dtype=torch.float32).view(-1, 1, 1, 1)
+                                                       .tile(1, 1, 3, 4),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1, 2], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1, 4], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2, 3], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 3, 4],
+                                     [0, 1, 3, 4],
+                                     [1, 0, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False, True])},
+            'size': 3}
         self.encoded_batch = {
             'data': torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2, 2, 2])}
-        self.decoded_batches = [
-            torch.tensor([0, 1, 2, 3], dtype=torch.float32)
-                 .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            torch.tensor([4, 5], dtype=torch.float32)
-                 .view(1, 2, 1, 1).tile(1, 1, 3, 4)]
+            'channels_per_sample': torch.tensor([2, 2, 2]),
+            'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
+                                        0.02, 0.04, 0.06, 0.08],
+                                       dtype=torch.float32),
+            'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
+                                   dtype=torch.uint8).view(-1, 1, 1, 1)
+                                                     .tile(1, 1, 10, 10),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1, 2], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1, 4], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2, 3], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 3, 4],
+                                     [0, 1, 3, 4],
+                                     [1, 0, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False, True])}}
+        self.decoded_batches = [{
+            'data': torch.tensor([0, 1, 2, 3], dtype=torch.float32)
+                         .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
+            'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
+                                       dtype=torch.float32),
+            'sample_idx': torch.tensor([0, 0, 0, 1, 1],
+                                       dtype=torch.long),
+            'images': torch.tensor([0, 1, 2, 3, 4],
+                                   dtype=torch.float32).view(-1, 1, 1, 1)
+                                                       .tile(1, 1, 3, 4),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 3, 4],
+                                     [0, 1, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False])},
+            'size': 2}, {
+            'data': torch.tensor([4, 5], dtype=torch.float32)
+                         .view(1, 2, 1, 1).tile(1, 1, 3, 4),
+            'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
+                                       dtype=torch.float32),
+            'sample_idx': torch.tensor([0, 0, 0, 0, 0],
+                                       dtype=torch.long),
+            'images': torch.tensor([5, 6, 7, 8],
+                                   dtype=torch.float32).view(-1, 1, 1, 1)
+                                                       .tile(1, 1, 3, 4),
+            'augmentation_params': {
+                'idx': torch.tensor([2], dtype=torch.long),
+                'sequence_length': torch.tensor([4], dtype=torch.short),
+                'collapse_length': torch.tensor([3], dtype=torch.short),
+                'box': torch.tensor([[1, 0, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True])},
+            'size': 1}]
         self.encoded_batches = [{
             'data': torch.tensor([0, 1, 2, 3], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
