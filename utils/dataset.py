@@ -127,6 +127,37 @@ def join_batches(batches: typing.List[typing.Dict]):
     return result
 
 
+def encode_batch_info(timestamps: torch.Tensor,
+                      sample_idx: torch.Tensor,
+                      images: torch.Tensor,
+                      augmentation_params: Augmentation_t):
+    """Encodes a batch information to decrease storage space
+
+    Args:
+        timestamps:
+            Timestamps of images in the batch
+        sample_idx:
+            Sample indices of the timestamps and images
+        images:
+            Images at the given timestamps
+        augmentation_params:
+            Augmentation parameters as a dictionary
+        size:
+            A number of samples in the batch
+
+    Returns:
+        A dictionary representation of the encoded batch with keys
+        (timestamps, images, augmentation_params).
+        timestamps is one-dimensional float tensor representing
+        timestamps of images;
+        sample_idx is one-dimensional short tensor representing;
+        images is a uint8 tensor representing images;
+        augmentation_params is dictionary of augmentation parameters.
+    """
+    return {'timestamps': timestamps, 'images': images.to(torch.uint8),
+            'augmentation_params': augmentation_params}
+
+
 def encode_batch(events: torch.Tensor,
                  timestamps: torch.Tensor,
                  sample_idx: torch.Tensor,

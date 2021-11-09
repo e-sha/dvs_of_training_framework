@@ -91,10 +91,33 @@ class TestQuantized:
         self.encoded_batches = [{
             'data': torch.tensor([0, 1, 2, 3], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2, 2])}, {
+            'channels_per_sample': torch.tensor([2, 2]),
+            'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
+                                       dtype=torch.float32),
+            'images': torch.tensor([0, 1, 2, 3, 4], dtype=torch.uint8)
+                           .view(-1, 1, 1, 1).tile(1, 1, 3, 4),
+            'augmentation_params': {
+                'idx': torch.tensor([0, 1], dtype=torch.long),
+                'sequence_length': torch.tensor([2, 1], dtype=torch.short),
+                'collapse_length': torch.tensor([1, 2], dtype=torch.short),
+                'box': torch.tensor([[0, 0, 3, 4],
+                                     [0, 1, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.1, 0.2], dtype=torch.float32),
+                'is_flip': torch.tensor([True, False])}}, {
             'data': torch.tensor([4, 5], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2])}]
+            'channels_per_sample': torch.tensor([2]),
+            'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
+                                       dtype=torch.float32),
+            'images': torch.tensor([5, 6, 7, 8], dtype=torch.uint8)
+                           .view(-1, 1, 1, 1).tile(1, 1, 3, 4),
+            'augmentation_params': {
+                'idx': torch.tensor([2], dtype=torch.long),
+                'sequence_length': torch.tensor([4], dtype=torch.short),
+                'collapse_length': torch.tensor([3], dtype=torch.short),
+                'box': torch.tensor([[1, 0, 3, 4]], dtype=torch.long),
+                'angle': torch.tensor([0.3], dtype=torch.float32),
+                'is_flip': torch.tensor([True])}}]
 
     def test_encode(self):
         encoded = encode_quantized_batch(self.decoded_batch)
