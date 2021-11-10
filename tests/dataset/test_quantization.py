@@ -36,7 +36,8 @@ class TestQuantized:
         self.encoded_batch = {
             'data': torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2, 2, 2]),
+            'channels_per_sample': torch.tensor([2, 2, 2], dtype=torch.uint8),
+            'elements_per_sample': torch.tensor([2, 1, 4], dtype=torch.uint8),
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),
@@ -91,7 +92,8 @@ class TestQuantized:
         self.encoded_batches = [{
             'data': torch.tensor([0, 1, 2, 3], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2, 2]),
+            'channels_per_sample': torch.tensor([2, 2], dtype=torch.uint8),
+            'elements_per_sample': torch.tensor([2, 1], dtype=torch.uint8),
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
                                        dtype=torch.float32),
             'images': torch.tensor([0, 1, 2, 3, 4], dtype=torch.uint8)
@@ -106,7 +108,8 @@ class TestQuantized:
                 'is_flip': torch.tensor([True, False])}}, {
             'data': torch.tensor([4, 5], dtype=torch.float32)
                          .view(-1, 2, 1, 1).tile(1, 1, 3, 4),
-            'channels_per_sample': torch.tensor([2]),
+            'channels_per_sample': torch.tensor([2], dtype=torch.uint8),
+            'elements_per_sample': torch.tensor([4], dtype=torch.uint8),
             'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),
             'images': torch.tensor([5, 6, 7, 8], dtype=torch.uint8)

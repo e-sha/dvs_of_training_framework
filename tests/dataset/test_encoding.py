@@ -60,12 +60,11 @@ class TestDatasetEncoding:
                                                  True, True, True, False]),
                        'events_per_element': torch.tensor([1, 2, 1, 1,
                                                            0, 1, 1],
-                                                          dtype=torch.long),
-                       'elements_per_sample': torch.tensor([2, 1, 4],
-                                                           dtype=torch.short)},
+                                                          dtype=torch.long)},
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),
+            'elements_per_sample': torch.tensor([2, 1, 4], dtype=torch.short),
             'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
                                    dtype=torch.uint8).view(-1, 1, 1, 1)
                                                      .tile(1, 1, 10, 10),
@@ -89,11 +88,10 @@ class TestDatasetEncoding:
                         'polarity': torch.tensor([False, True, False,
                                                   True]),
                         'events_per_element': torch.tensor([1, 2, 1],
-                                                           dtype=torch.long),
-                        'elements_per_sample':
-                        torch.tensor([2, 1], dtype=torch.short)},
+                                                           dtype=torch.long)},
              'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
                                         dtype=torch.float32),
+             'elements_per_sample': torch.tensor([2, 1], dtype=torch.short),
              'images': torch.tensor([0, 1, 2, 3, 4],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
                                                       .tile(1, 1, 10, 10),
@@ -113,11 +111,10 @@ class TestDatasetEncoding:
                                                   dtype=torch.float32),
                         'polarity': torch.tensor([True, True, False]),
                         'events_per_element': torch.tensor([1, 0, 1, 1],
-                                                           dtype=torch.long),
-                        'elements_per_sample':
-                        torch.tensor([4], dtype=torch.short)},
+                                                           dtype=torch.long)},
              'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
                                         dtype=torch.float32),
+             'elements_per_sample': torch.tensor([4], dtype=torch.short),
              'images': torch.tensor([5, 6, 7, 8],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
                                                       .tile(1, 1, 10, 10),
@@ -149,9 +146,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 0, 'end': 3},
                          'timestamp': {'begin': 0, 'end': 3},
                          'polarity': {'begin': 0, 'end': 3},
-                         'events_per_element': {'begin': 0, 'end': 2},
-                         'elements_per_sample': {'begin': 0, 'end': 1}},
+                         'events_per_element': {'begin': 0, 'end': 2}},
               'timestamps': {'begin': 0, 'end': 3},
+              'elements_per_sample': {'begin': 0, 'end': 1},
               'images': {'begin': 0, 'end': 3},
               'augmentation_params': {
                   'idx': {'begin': 0, 'end': 1},
@@ -162,7 +159,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 0, 'end': 1}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
         begin = 1
         end = 2
@@ -170,9 +167,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 3, 'end': 4},
                          'timestamp': {'begin': 3, 'end': 4},
                          'polarity': {'begin': 3, 'end': 4},
-                         'events_per_element': {'begin': 2, 'end': 3},
-                         'elements_per_sample': {'begin': 1, 'end': 2}},
+                         'events_per_element': {'begin': 2, 'end': 3}},
               'timestamps': {'begin': 3, 'end': 5},
+              'elements_per_sample': {'begin': 1, 'end': 2},
               'images': {'begin': 3, 'end': 5},
               'augmentation_params': {
                   'idx': {'begin': 1, 'end': 2},
@@ -183,7 +180,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 1, 'end': 2}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
         begin = 2
         end = 3
@@ -191,9 +188,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 4, 'end': 7},
                          'timestamp': {'begin': 4, 'end': 7},
                          'polarity': {'begin': 4, 'end': 7},
-                         'events_per_element': {'begin': 3, 'end': 7},
-                         'elements_per_sample': {'begin': 2, 'end': 3}},
+                         'events_per_element': {'begin': 3, 'end': 7}},
               'timestamps': {'begin': 5, 'end': 10},
+              'elements_per_sample': {'begin': 2, 'end': 3},
               'images': {'begin': 5, 'end': 10},
               'augmentation_params': {
                   'idx': {'begin': 2, 'end': 3},
@@ -204,7 +201,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 2, 'end': 3}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
         begin = 0
         end = 2
@@ -212,9 +209,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 0, 'end': 4},
                          'timestamp': {'begin': 0, 'end': 4},
                          'polarity': {'begin': 0, 'end': 4},
-                         'events_per_element': {'begin': 0, 'end': 3},
-                         'elements_per_sample': {'begin': 0, 'end': 2}},
+                         'events_per_element': {'begin': 0, 'end': 3}},
               'timestamps': {'begin': 0, 'end': 5},
+              'elements_per_sample': {'begin': 0, 'end': 2},
               'images': {'begin': 0, 'end': 5},
               'augmentation_params': {
                   'idx': {'begin': 0, 'end': 2},
@@ -225,7 +222,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 0, 'end': 2}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
         begin = 1
         end = 3
@@ -233,9 +230,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 3, 'end': 7},
                          'timestamp': {'begin': 3, 'end': 7},
                          'polarity': {'begin': 3, 'end': 7},
-                         'events_per_element': {'begin': 2, 'end': 7},
-                         'elements_per_sample': {'begin': 1, 'end': 3}},
+                         'events_per_element': {'begin': 2, 'end': 7}},
               'timestamps': {'begin': 3, 'end': 10},
+              'elements_per_sample': {'begin': 1, 'end': 3},
               'images': {'begin': 3, 'end': 10},
               'augmentation_params': {
                   'idx': {'begin': 1, 'end': 3},
@@ -246,7 +243,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 1, 'end': 3}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
         begin = 0
         end = 3
@@ -254,9 +251,9 @@ class TestDatasetEncoding:
                          'y': {'begin': 0, 'end': 7},
                          'timestamp': {'begin': 0, 'end': 7},
                          'polarity': {'begin': 0, 'end': 7},
-                         'events_per_element': {'begin': 0, 'end': 7},
-                         'elements_per_sample': {'begin': 0, 'end': 3}},
+                         'events_per_element': {'begin': 0, 'end': 7}},
               'timestamps': {'begin': 0, 'end': 10},
+              'elements_per_sample': {'begin': 0, 'end': 3},
               'images': {'begin': 0, 'end': 10},
               'augmentation_params': {
                   'idx': {'begin': 0, 'end': 3},
@@ -267,7 +264,7 @@ class TestDatasetEncoding:
                   'is_flip': {'begin': 0, 'end': 3}}}
         prediction = select_encoded_ranges(
                 self.encoded['events']['events_per_element'],
-                self.encoded['events']['elements_per_sample'], begin, end)
+                self.encoded['elements_per_sample'], begin, end)
         compare(prediction, gt)
 
     def test_read_prepared_batch(self):
@@ -276,7 +273,7 @@ class TestDatasetEncoding:
         write_encoded_batch(filename, self.encoded)
         with h5py.File(filename, 'r') as f:
             elements_per_sample = \
-                torch.tensor(f['events']['elements_per_sample'])
+                torch.tensor(f['elements_per_sample'])
             events_per_element = \
                 torch.tensor(f['events']['events_per_element'])
             batch = read_encoded_batch(f, events_per_element,
@@ -284,7 +281,7 @@ class TestDatasetEncoding:
         compare(batch, self.encoded_parts[0])
         with h5py.File(filename, 'r') as f:
             elements_per_sample = \
-                torch.tensor(f['events']['elements_per_sample'])
+                torch.tensor(f['elements_per_sample'])
             events_per_element = \
                 torch.tensor(f['events']['events_per_element'])
             batch = read_encoded_batch(f, events_per_element,

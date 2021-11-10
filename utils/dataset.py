@@ -70,10 +70,10 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
                                     'end': events_end},
                        'events_per_element': {
                            'begin': events_per_element_begin,
-                           'end': events_per_element_end},
-                       'elements_per_sample': {'begin': sample_begin,
-                                               'end': sample_end}},
+                           'end': events_per_element_end}},
             'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
+            'elements_per_sample': {'begin': sample_begin,
+                                    'end': sample_end},
             'images': {'begin': timestamp_begin, 'end': timestamp_end},
             'augmentation_params': {
                 'idx': {'begin': sample_begin, 'end': sample_end},
@@ -103,10 +103,9 @@ def join_batches(batches: typing.List[typing.Dict]):
                            'timestamp': torch.tensor([], dtype=torch.float32),
                            'polarity': torch.tensor([], dtype=torch.bool),
                            'events_per_element':
-                           torch.tensor([], dtype=torch.short),
-                           'elements_per_sample':
                            torch.tensor([], dtype=torch.short)},
                 'timestamps': torch.tensor([], dtype=torch.float32),
+                'elements_per_sample': torch.tensor([], dtype=torch.short),
                 'images': torch.tensor([], dtype=torch.uint8),
                 'augmentation_params': {}}
     if len(batches) == 1:
@@ -130,7 +129,8 @@ def join_batches(batches: typing.List[typing.Dict]):
 def encode_batch_info(timestamps: torch.Tensor,
                       sample_idx: torch.Tensor,
                       images: torch.Tensor,
-                      augmentation_params: Augmentation_t):
+                      augmentation_params: Augmentation_t,
+                      size: int):
     """Encodes a batch information to decrease storage space
 
     Args:
@@ -147,14 +147,21 @@ def encode_batch_info(timestamps: torch.Tensor,
 
     Returns:
         A dictionary representation of the encoded batch with keys
-        (timestamps, images, augmentation_params).
+        (timestamps, elements_per_sample, images, augmentation_params).
         timestamps is one-dimensional float tensor representing
         timestamps of images;
+        elements_per_sample is a one-dimensional short tensor
+        representing a number of elements in each sample;
         sample_idx is one-dimensional short tensor representing;
         images is a uint8 tensor representing images;
         augmentation_params is dictionary of augmentation parameters.
     """
-    return {'timestamps': timestamps, 'images': images.to(torch.uint8),
+    elements_per_sample = np.zeros(size, dtype=np.short) - 1
+    np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
+    elements_per_sample = torch.tensor(elements_per_sample)
+    return {'timestamps': timestamps,
+            'elements_per_sample': elements_per_sample,
+            'images': images.to(torch.uint8),
             'augmentation_params': augmentation_params}
 
 
@@ -183,9 +190,9 @@ def encode_batch(events: torch.Tensor,
 
     Returns:
         A dictionary representation of the encoded batch with keys
-        (events, timestamps, images, augmentation_params).
+        (events, timestamps, elements_per_sample, images, augmentation_params).
         events is a dictionary with keys
-        (x, y, timestamp, polarity, events_per_element, elements_per_sample),
+        (x, y, timestamp, polarity, events_per_element),
         where events.x is one-dimensional tensor of x coordinates as
         torch.int16;
         events.y is one-dimensional tensor of y coordinates as torch.int16;
@@ -194,14 +201,16 @@ def encode_batch(events: torch.Tensor,
         events.polarities is a one-dimensional boolean tensor of polarities;
         events.events_per_element is a one-dimensional short tensor
         representing a number of events in each element;
-        events.elements_per_sample is a one-dimensional short tensor
-        representing a number of elements in each sample;
         timestamps is one-dimensional float tensor representing
         timestamps of images;
-        sample_idx is one-dimensional short tensor representing;
+        elements_per_sample is a one-dimensional short tensor
+        representing a number of elements in each sample;
         images is a uint8 tensor representing images;
         augmentation_params is dictionary of augmentation parameters.
     """
+    result = encode_batch_info(timestamps, sample_idx,
+                               images, augmentation_params, size)
+
     x = events['x'].to(torch.short)
     y = events['y'].to(torch.short)
     t = events['timestamp']
@@ -209,11 +218,9 @@ def encode_batch(events: torch.Tensor,
     e = events['element_index'].to(torch.long).numpy()
     s = events['sample_index'].to(torch.short).numpy()
 
-    elements_per_sample = np.zeros(size, dtype=np.short) - 1
-    np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
-    elements_per_sample = torch.tensor(elements_per_sample)
     new_e = np.zeros(e.size, dtype=np.uint8)
-    element_shift = np.array([0] + elements_per_sample.tolist(), dtype=np.long)
+    element_shift = np.array([0] + result['elements_per_sample'].tolist(),
+                             dtype=np.long)
     element_shift = np.cumsum(element_shift)
     new_e = e + element_shift[s]
     total_elements = int(new_e[-1]) + 1
@@ -221,11 +228,9 @@ def encode_batch(events: torch.Tensor,
     events_per_element = np.zeros(total_elements, dtype=np.long)
     np.add.at(events_per_element, new_e, np.ones_like(new_e))
     events_per_element = torch.tensor(events_per_element)
-    return {'events': {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
-                       'events_per_element': events_per_element,
-                       'elements_per_sample': elements_per_sample},
-            'timestamps': timestamps, 'images': images.to(torch.uint8),
-            'augmentation_params': augmentation_params}
+    result['events'] = {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
+                        'events_per_element': events_per_element}
+    return result
 
 
 def decode_batch(encoded_batch):
@@ -248,14 +253,14 @@ def decode_batch(encoded_batch):
     polarity = events['polarity'].to(torch.long) * 2 - 1
     sample_idx = torch.cat([
         torch.full([n.item() + 1], i, dtype=torch.long)
-        for i, n in enumerate(events['elements_per_sample'])])
-    batch_size = events['elements_per_sample'].numel()
-    sample_shift = cumsum_with_prefix(events['elements_per_sample'],
+        for i, n in enumerate(encoded_batch['elements_per_sample'])])
+    batch_size = encoded_batch['elements_per_sample'].numel()
+    sample_shift = cumsum_with_prefix(encoded_batch['elements_per_sample'],
                                       dtype=torch.long)
     num_elements = events['events_per_element'].numel()
     element_index = []
     sample_index = []
-    for i, num_elements in enumerate(events['elements_per_sample']):
+    for i, num_elements in enumerate(encoded_batch['elements_per_sample']):
         current_events_per_element = \
                 events['events_per_element'][sample_shift[i]:
                                              sample_shift[i + 1]]
@@ -364,18 +369,29 @@ def encode_quantized_batch(batch: typing.Dict) -> typing.Dict:
 
     Returns:
         A dictionary representation of the encoded quantized batch with keys
-        (data, channels_per_sample, timestamps, images, augmentation_params).
+        (data, channels_per_sample, elements_per_sample, timestamps, images,
+        augmentation_params).
         data is a torch.Tensor representation of the quantized batch of size
         (B*C)xWxH as torch.float32;
         channels_per_sample is torch.Tensor representation of number of
-        channels in each sample. torch.long;
+        channels in each sample. torch.uint8;
+        elements_per_sample is a torch.Tensor represention of a number of
+        elements in each sample. torch.uint8;
         timestamps is one-dimensional float tensor representing
         timestamps of images;
         sample_idx is one-dimensional short tensor representing;
         images is a uint8 tensor representing images;
         augmentation_params is dictionary of augmentation parameters.
     """
-    return None
+    B, C, H, W = batch['data'].size()
+    result = {'data': batch['data'].reshape(B*C, H, W),
+              'channels_per_sample': torch.full(B, C, dtype=torch.uint8)}
+    result.update(encode_batch_info(batch['timestamps'],
+                                    batch['sample_idx'],
+                                    batch['images'],
+                                    batch['augmentation_params'],
+                                    batch['size']))
+    return result
 
 
 def decode_quantized_batch(batch: typing.Dict) -> typing.Dict:
@@ -746,7 +762,7 @@ class PreprocessedDataloader:
             Number of samples in a file
         """
         with h5py.File(filename, 'r') as f:
-            return len(f['events']['elements_per_sample'])
+            return len(f['elements_per_sample'])
 
     def set_index(self,
                   idx: int):
@@ -790,7 +806,7 @@ class PreprocessedDataloader:
                     events_per_element = torch.tensor(
                             f['events']['events_per_element'])
                     elements_per_sample = torch.tensor(
-                            f['events']['elements_per_sample'])
+                            f['elements_per_sample'])
                     batches.append(read_encoded_batch(f, events_per_element,
                                                       elements_per_sample,
                                                       self.sample_index,
