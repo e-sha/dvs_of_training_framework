@@ -64,7 +64,7 @@ class TestDatasetEncoding:
             'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03, 0,
                                         0.02, 0.04, 0.06, 0.08],
                                        dtype=torch.float32),
-            'elements_per_sample': torch.tensor([2, 1, 4], dtype=torch.short),
+            'elements_per_sample': torch.tensor([2, 1, 4], dtype=torch.uint8),
             'images': torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8],
                                    dtype=torch.uint8).view(-1, 1, 1, 1)
                                                      .tile(1, 1, 10, 10),
@@ -91,7 +91,7 @@ class TestDatasetEncoding:
                                                            dtype=torch.long)},
              'timestamps': torch.tensor([0, 0.04, 0.08, 0, 0.03],
                                         dtype=torch.float32),
-             'elements_per_sample': torch.tensor([2, 1], dtype=torch.short),
+             'elements_per_sample': torch.tensor([2, 1], dtype=torch.uint8),
              'images': torch.tensor([0, 1, 2, 3, 4],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
                                                       .tile(1, 1, 10, 10),
@@ -114,7 +114,7 @@ class TestDatasetEncoding:
                                                            dtype=torch.long)},
              'timestamps': torch.tensor([0, 0.02, 0.04, 0.06, 0.08],
                                         dtype=torch.float32),
-             'elements_per_sample': torch.tensor([4], dtype=torch.short),
+             'elements_per_sample': torch.tensor([4], dtype=torch.uint8),
              'images': torch.tensor([5, 6, 7, 8],
                                     dtype=torch.uint8).view(-1, 1, 1, 1)
                                                       .tile(1, 1, 10, 10),

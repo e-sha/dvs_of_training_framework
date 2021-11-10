@@ -158,7 +158,7 @@ def encode_batch_info(timestamps: torch.Tensor,
     """
     elements_per_sample = np.zeros(size, dtype=np.short) - 1
     np.add.at(elements_per_sample, sample_idx, np.ones(sample_idx.numel()))
-    elements_per_sample = torch.tensor(elements_per_sample)
+    elements_per_sample = torch.tensor(elements_per_sample, dtype=torch.uint8)
     return {'timestamps': timestamps,
             'elements_per_sample': elements_per_sample,
             'images': images.to(torch.uint8),
@@ -233,6 +233,33 @@ def encode_batch(events: torch.Tensor,
     return result
 
 
+def decode_batch_info(encoded_batch_info):
+    """Decodes a batch info
+
+    Args:
+        encoded_batch_info:
+            A dictionary with keys
+            (timestamps, elements_per_sample, images, augmentation_params).
+
+    Returns:
+        A decoded batch info as a dict with keys
+        (timestamps, sample_idx, images, augmentation_params, size).
+        The batch format is the same as the input of encode_batch.
+    """
+    timestamps = encoded_batch_info['timestamps']
+    images = encoded_batch_info['images']
+    augmentation_params = encoded_batch_info['augmentation_params']
+    sample_idx = torch.cat([
+        torch.full([n.item() + 1], i, dtype=torch.long)
+        for i, n in enumerate(encoded_batch_info['elements_per_sample'])])
+    batch_size = encoded_batch_info['elements_per_sample'].numel()
+    return {'timestamps': timestamps.to(torch.float32),
+            'sample_idx': sample_idx,
+            'images': images.to(torch.float32),
+            'augmentation_params': augmentation_params,
+            'size': batch_size}
+
+
 def decode_batch(encoded_batch):
     """Decodes a batch of encoded images
 
@@ -246,15 +273,9 @@ def decode_batch(encoded_batch):
         (events, timestamps, sample_idx, images, augmentation_params, size).
         The batch format is the same as the input of encode_batch
     """
+    result = decode_batch_info(encoded_batch)
     events = encoded_batch['events']
-    timestamps = encoded_batch['timestamps']
-    images = encoded_batch['images']
-    augmentation_params = encoded_batch['augmentation_params']
     polarity = events['polarity'].to(torch.long) * 2 - 1
-    sample_idx = torch.cat([
-        torch.full([n.item() + 1], i, dtype=torch.long)
-        for i, n in enumerate(encoded_batch['elements_per_sample'])])
-    batch_size = encoded_batch['elements_per_sample'].numel()
     sample_shift = cumsum_with_prefix(encoded_batch['elements_per_sample'],
                                       dtype=torch.long)
     num_elements = events['events_per_element'].numel()
@@ -271,18 +292,13 @@ def decode_batch(encoded_batch):
         sample_index.append(torch.full([num_events], i, dtype=torch.long))
     element_index = torch.cat(element_index)
     sample_index = torch.cat(sample_index)
-    out_events = {'x': events['x'].to(torch.long),
-                  'y': events['y'].to(torch.long),
-                  'timestamp': events['timestamp'],
-                  'polarity': polarity,
-                  'element_index': element_index,
-                  'sample_index': sample_index}
-    return {'events': out_events,
-            'timestamps': timestamps.to(torch.float32),
-            'sample_idx': sample_idx,
-            'images': images.to(torch.float32),
-            'augmentation_params': augmentation_params,
-            'size': batch_size}
+    result['events'] = {'x': events['x'].to(torch.long),
+                        'y': events['y'].to(torch.long),
+                        'timestamp': events['timestamp'],
+                        'polarity': polarity,
+                        'element_index': element_index,
+                        'sample_index': sample_index}
+    return result
 
 
 def write_encoded_batch(path: Path,
@@ -385,7 +401,9 @@ def encode_quantized_batch(batch: typing.Dict) -> typing.Dict:
     """
     B, C, H, W = batch['data'].size()
     result = {'data': batch['data'].reshape(B*C, H, W),
-              'channels_per_sample': torch.full(B, C, dtype=torch.uint8)}
+              'channels_per_sample': torch.full(size=(B, ),
+                                                fill_value=C,
+                                                dtype=torch.uint8)}
     result.update(encode_batch_info(batch['timestamps'],
                                     batch['sample_idx'],
                                     batch['images'],
@@ -404,9 +422,17 @@ def decode_quantized_batch(batch: typing.Dict) -> typing.Dict:
             An input encoded quantized batch.
 
     Returns:
-        The decoded batch of samples.
+        The decoded batch of quantized samples.
     """
-    return None
+    result = decode_batch_info(batch)
+    assert batch['channels_per_sample'].numel() > 0
+    assert (batch['channels_per_sample'] ==
+            batch['channels_per_sample'][0]).all()
+    B = result['size']
+    C = batch['channels_per_sample'][0].item()
+    _, H, W = batch['data'].size()
+    result['data'] = batch['data'].view(B, C, H, W)
+    return result
 
 
 def join_encoded_quantized_batches(batches: typing.Dict) -> typing.Dict:
