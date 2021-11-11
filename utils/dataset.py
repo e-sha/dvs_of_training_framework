@@ -23,11 +23,49 @@ def read_info(filename):
     return dict(zip(sets, start_times))
 
 
+def select_batch_info_ranges(elements_per_sample: torch.Tensor,
+                             sample_begin: int,
+                             sample_end: int):
+    """Computes begin and end indices requred to subset an encoded batch info
+    of [sample_begin, sample_end) samples.
+
+    Args:
+        elements_per_sample:
+            Number of elements in each sample.
+        sample_begin:
+            Index of the first sample in the batch.
+        sample_end:
+            Index of the next to the last sample in the batch.
+
+    Returns:
+        A dictionary of begin and end indices for each tensor in the encoded
+        samples. The result follows the structure of the encoded batch.
+    """
+    assert isinstance(sample_begin, int)
+    assert isinstance(sample_end, int)
+    assert sample_end > sample_begin
+
+    timestamps_shift = cumsum_with_prefix(elements_per_sample + 1)
+    timestamp_begin = timestamps_shift[sample_begin].item()
+    timestamp_end = timestamps_shift[sample_end].item()
+    return {'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
+            'elements_per_sample': {'begin': sample_begin,
+                                    'end': sample_end},
+            'images': {'begin': timestamp_begin, 'end': timestamp_end},
+            'augmentation_params': {
+                'idx': {'begin': sample_begin, 'end': sample_end},
+                'sequence_length': {'begin': sample_begin, 'end': sample_end},
+                'collapse_length': {'begin': sample_begin, 'end': sample_end},
+                'box': {'begin': sample_begin, 'end': sample_end},
+                'angle': {'begin': sample_begin, 'end': sample_end},
+                'is_flip': {'begin': sample_begin, 'end': sample_end}}}
+
+
 def select_encoded_ranges(events_per_element: torch.Tensor,
                           elements_per_sample: torch.Tensor,
                           sample_begin: int,
                           sample_end: int):
-    """Computes begin and end indices requred to subsed an encoded batch of
+    """Computes begin and end indices requred to subset an encoded batch of
     [sample_begin, sample_end) samples.
 
     Args:
@@ -52,36 +90,67 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
 
     events_shift = cumsum_with_prefix(events_per_element)
     elements_shift = cumsum_with_prefix(elements_per_sample)
-    timestamps_shift = cumsum_with_prefix(elements_per_sample + 1)
 
     events_per_element_begin = elements_shift[sample_begin].item()
     events_per_element_end = elements_shift[sample_end].item()
     events_begin = events_shift[events_per_element_begin].item()
     events_end = events_shift[events_per_element_end].item()
-    timestamp_begin = timestamps_shift[sample_begin].item()
-    timestamp_end = timestamps_shift[sample_end].item()
-    return {'events': {'x': {'begin': events_begin,
-                             'end': events_end},
-                       'y': {'begin': events_begin,
-                             'end': events_end},
-                       'timestamp': {'begin': events_begin,
+    result = select_batch_info_ranges(elements_per_sample,
+                                      sample_begin,
+                                      sample_end)
+    result['events'] = {'x': {'begin': events_begin,
+                              'end': events_end},
+                        'y': {'begin': events_begin,
+                              'end': events_end},
+                        'timestamp': {'begin': events_begin,
+                                      'end': events_end},
+                        'polarity': {'begin': events_begin,
                                      'end': events_end},
-                       'polarity': {'begin': events_begin,
-                                    'end': events_end},
-                       'events_per_element': {
-                           'begin': events_per_element_begin,
-                           'end': events_per_element_end}},
-            'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
-            'elements_per_sample': {'begin': sample_begin,
-                                    'end': sample_end},
-            'images': {'begin': timestamp_begin, 'end': timestamp_end},
-            'augmentation_params': {
-                'idx': {'begin': sample_begin, 'end': sample_end},
-                'sequence_length': {'begin': sample_begin, 'end': sample_end},
-                'collapse_length': {'begin': sample_begin, 'end': sample_end},
-                'box': {'begin': sample_begin, 'end': sample_end},
-                'angle': {'begin': sample_begin, 'end': sample_end},
-                'is_flip': {'begin': sample_begin, 'end': sample_end}}}
+                        'events_per_element': {
+                            'begin': events_per_element_begin,
+                            'end': events_per_element_end}}
+    return result
+
+
+def select_quantized_ranges(channels_per_sample: torch.Tensor,
+                            elements_per_sample: torch.Tensor,
+                            sample_begin: int,
+                            sample_end: int):
+    """Computes begin and end indices requred to subset an encoded batch of
+    [sample_begin, sample_end) samples.
+
+    Args:
+        channels_per_sample:
+            Number of events stored for each element.
+        elements_per_sample:
+            Number of elements in each sample.
+        sample_begin:
+            Index of the first sample in the batch.
+        sample_end:
+            Index of the next to the last sample in the batch.
+
+    Returns:
+        A dictionary of begin and end indices for each tensor in the encoded
+        samples. The result follows the structure of the encoded batch.
+        For example, begin and end indices for x coordinate of events are
+        located at ['events']['x']['begin'] and ['events']['x']['end'].
+    """
+    assert isinstance(sample_begin, int)
+    assert isinstance(sample_end, int)
+    assert sample_end > sample_begin
+
+    channels_shift = cumsum_with_prefix(channels_per_sample)
+
+    channels_begin = channels_shift[sample_begin].item()
+    channels_end = channels_shift[sample_end].item()
+
+    result = select_batch_info_ranges(elements_per_sample,
+                                      sample_begin,
+                                      sample_end)
+    result['data'] = {'begin': channels_begin, 'end': channels_end}
+    result['channels_per_sample'] = {'begin': sample_begin,
+                                     'end': sample_end}
+    return result
 
 
 def join_batches(batches: typing.List[typing.Dict]):
@@ -94,7 +163,7 @@ def join_batches(batches: typing.List[typing.Dict]):
 
     Returns:
         A joined batch as a dict with keys
-        (events, timestamps, images, augmentation_params).
+        (events, timestamps, elements_per_sample, images, augmentation_params).
     """
 
     if len(batches) == 0:
@@ -347,21 +416,6 @@ def read_encoded_batch(descriptor: h5py.File,
     Returns:
         An encoded batch of samples from sample_begin to sample_end-1.
     """
-    def is_final(element):
-        assert isinstance(element, dict), element
-        return 'begin' in element and isinstance(element['begin'], int) and \
-               'end' in element and isinstance(element['end'], int)
-
-    def read_data(descriptor, ranges):
-        assert isinstance(ranges, dict)
-        result = {}
-        for k, v in ranges.items():
-            if is_final(v):
-                result[k] = torch.tensor(descriptor[k][v['begin']:v['end']])
-            else:
-                result[k] = read_data(descriptor[k], v)
-        return result
-
     ranges = select_encoded_ranges(events_per_element,
                                    elements_per_sample,
                                    sample_begin,
@@ -435,21 +489,6 @@ def decode_quantized_batch(batch: typing.Dict) -> typing.Dict:
     return result
 
 
-def join_encoded_quantized_batches(batches: typing.Dict) -> typing.Dict:
-    """Constructs encoded quantized batch from list of encoded quantized
-    batches.
-
-    Args:
-        batches:
-            An iterable with encoded quantized batches.
-            For more details see encode_quantized_batch.
-
-    Returns:
-        The joined encoded quantized batch.
-    """
-    return None
-
-
 def write_encoded_quantized_batch(path: Path,
                                   batch: typing.Dict):
     """Writes encoded quantized batch to a file in hdf5 file
@@ -463,8 +502,24 @@ def write_encoded_quantized_batch(path: Path,
     return None
 
 
+def read_data(descriptor, ranges):
+    def is_final(element):
+        assert isinstance(element, dict), element
+        return 'begin' in element and isinstance(element['begin'], int) and \
+               'end' in element and isinstance(element['end'], int)
+    assert isinstance(ranges, dict)
+    result = {}
+    for k, v in ranges.items():
+        if is_final(v):
+            result[k] = torch.tensor(descriptor[k][v['begin']:v['end']])
+        else:
+            result[k] = read_data(descriptor[k], v)
+    return result
+
+
 def read_encoded_quantized_batch(descriptor: h5py.File,
                                  channels_per_sample: torch.Tensor,
+                                 elements_per_sample: torch.Tensor,
                                  sample_begin: int,
                                  sample_end) -> typing.Dict:
     """Reads batch of encoded quantized samples in range
@@ -475,6 +530,8 @@ def read_encoded_quantized_batch(descriptor: h5py.File,
             A descriptor of an open hdf5 file with samples.
         channels_per_sample:
             A tensor describing number of channels in each sample in the file.
+        elements_per_sample:
+            A tensor describing number of elements in each sample in the file.
         sample_begin:
             Index of the first sample in the batch.
         sample_end:
@@ -484,7 +541,11 @@ def read_encoded_quantized_batch(descriptor: h5py.File,
         An encoded quantized batch of samples from sample_begin to
         sample_end-1.
     """
-    return None
+    ranges = select_quantized_ranges(channels_per_sample,
+                                     elements_per_sample,
+                                     sample_begin,
+                                     sample_end)
+    return read_data(descriptor, ranges)
 
 
 class IterableDataset(torch.utils.data.IterableDataset):

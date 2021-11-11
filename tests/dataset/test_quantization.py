@@ -5,9 +5,9 @@ import torch
 
 from tests.utils import compare
 from utils.dataset import encode_quantized_batch, decode_quantized_batch
-from utils.dataset import join_encoded_quantized_batches
+from utils.dataset import join_batches
 from utils.dataset import read_encoded_quantized_batch
-from utils.dataset import write_encoded_quantized_batch
+from utils.dataset import write_encoded_batch
 
 
 class TestQuantized:
@@ -131,16 +131,36 @@ class TestQuantized:
         compare(decoded, self.decoded_batch)
 
     def test_join(self):
-        joined = join_encoded_quantized_batches(self.encoded_batches)
+        joined = join_batches(self.encoded_batches)
         compare(joined, self.encoded_batch)
 
     def test_read_write(self):
         with tempfile.NamedTemporaryFile(suffix='.hdf5') as f:
             filename = Path(f.name)
-        write_encoded_quantized_batch(filename, self.encoded_batch)
+        write_encoded_batch(filename, self.encoded_batch)
         assert filename.is_file()
         with h5py.File(filename, 'r') as f:
             channels_per_sample = torch.tensor(f['channels_per_sample'])
-            read = read_encoded_quantized_batch(f, channels_per_sample, 0, 3)
+            elements_per_sample = torch.tensor(f['elements_per_sample'])
+            read = read_encoded_quantized_batch(f,
+                                                channels_per_sample,
+                                                elements_per_sample,
+                                                0, 3)
         compare(read, self.encoded_batch)
+        with h5py.File(filename, 'r') as f:
+            channels_per_sample = torch.tensor(f['channels_per_sample'])
+            elements_per_sample = torch.tensor(f['elements_per_sample'])
+            read = read_encoded_quantized_batch(f,
+                                                channels_per_sample,
+                                                elements_per_sample,
+                                                0, 2)
+        compare(read, self.encoded_batches[0])
+        with h5py.File(filename, 'r') as f:
+            channels_per_sample = torch.tensor(f['channels_per_sample'])
+            elements_per_sample = torch.tensor(f['elements_per_sample'])
+            read = read_encoded_quantized_batch(f,
+                                                channels_per_sample,
+                                                elements_per_sample,
+                                                2, 3)
+        compare(read, self.encoded_batches[1])
         filename.unlink()
