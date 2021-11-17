@@ -18,7 +18,8 @@ try:
     from train_flownet import get_dataloader
     from utils.common import write_execution_info, collect_execution_info
     from utils.common import check_execution_info
-    from utils.dataset import encode_batch, write_encoded_batch, join_batches
+    from utils.dataset import encode_quantized_batch, write_encoded_batch
+    from utils.dataset import join_quantized_batches
     from utils.dataloader import choose_data_path
     from utils.options import validate_dataset_args, add_dataset_arguments
     from utils.options import add_dataset_preprocessing_arguments
@@ -60,7 +61,7 @@ def main(args):
     num_written = 0
     for filename in written_files:
         with h5py.File(filename, 'r') as f:
-            num_written += len(f['events']['elements_per_sample'])
+            num_written += len(f['elements_per_sample'])
     num_batches_per_write = (args.samples_per_file - 1) // args.mbs + 1
     encoded_batches = []
     j = 0
@@ -69,12 +70,17 @@ def main(args):
     for i, batch in tqdm(enumerate(loader), initial=initial, total=total):
         if num_written >= args.size:
             break
-        encoded_batches.append(encode_batch(**batch))
+        imsize = batch['imsize'].size()[:2]
+        quantized_batch = model.quantize(batch['events'],
+                                         batch['timestamps'],
+                                         batch['sample_idx'],
+                                         imsize)
+        encoded_batches.append(encode_quantized_batch(quantized_batch))
         num_written += \
-            len(encoded_batches[-1]['events']['elements_per_sample'])
+            len(encoded_batches[-1]['elements_per_sample'])
         is_last = num_written >= args.size
         if (i + 1) % num_batches_per_write == 0 or is_last:
-            joined_batches = join_batches(encoded_batches)
+            joined_batches = join_quantized_batches(encoded_batches)
             while j in written_indices:
                 j += 1
             write_encoded_batch(args.output/f'{j}.hdf5', joined_batches)

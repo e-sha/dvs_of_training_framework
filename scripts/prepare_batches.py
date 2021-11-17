@@ -55,7 +55,7 @@ def main(args):
     num_written = 0
     for filename in written_files:
         with h5py.File(filename, 'r') as f:
-            num_written += len(f['events']['elements_per_sample'])
+            num_written += len(f['elements_per_sample'])
     num_batches_per_write = (args.samples_per_file - 1) // args.mbs + 1
     encoded_batches = []
     j = 0
@@ -66,7 +66,7 @@ def main(args):
             break
         encoded_batches.append(encode_batch(**batch))
         num_written += \
-            len(encoded_batches[-1]['events']['elements_per_sample'])
+            len(encoded_batches[-1]['elements_per_sample'])
         is_last = num_written >= args.size
         if (i + 1) % num_batches_per_write == 0 or is_last:
             joined_batches = join_batches(encoded_batches)
