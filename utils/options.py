@@ -47,6 +47,12 @@ def add_model_arguments(parser):
                         'Default is None',
                         choices=['CPU', 'NVTX', 'None'],
                         default='None')
+    parser.add_argument('-sp',
+                        '--starting_point',
+                        help='initial weights for the network',
+                        dest='sp',
+                        default=None,
+                        required=False)
     return parser
 
 
@@ -200,12 +206,6 @@ def add_train_arguments(parser):
                         default=100000,
                         type=float,
                         required=False)
-    parser.add_argument('-sp',
-                        '--starting_point',
-                        help='initial weights for the network',
-                        dest='sp',
-                        default=None,
-                        required=False)
     parser.add_argument('-wdw',
                         '--weight_decay_weight',
                         help='weight of weight decay',
@@ -300,6 +300,7 @@ def validate_dataset_args(args):
 
 def validate_quantization_args(args):
     assert args.preprocessed_dataset_path is not None
+    assert args.sp is not None
     return args
 
 

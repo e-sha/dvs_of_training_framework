@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
+import copy
 import h5py
 import sys
+import torch
 from tqdm import tqdm
 
 
@@ -19,8 +21,9 @@ try:
     from utils.common import write_execution_info, collect_execution_info
     from utils.common import check_execution_info
     from utils.dataset import encode_quantized_batch, write_encoded_batch
-    from utils.dataset import join_quantized_batches
+    from utils.dataset import join_batches
     from utils.dataloader import choose_data_path
+    from utils.model import init_model
     from utils.options import validate_dataset_args, add_dataset_arguments
     from utils.options import add_dataset_preprocessing_arguments
     from utils.options import add_dataloader_arguments, add_common_arguments
@@ -54,6 +57,7 @@ def parse_args(args, is_write=True):
 
 
 def main(args):
+    model = init_model(args, device=args.device)
     loader = get_dataloader(get_trainset_params(args))
     args.output.mkdir(exist_ok=True)
     written_files = list(args.output.glob('*.hdf5'))
@@ -70,17 +74,20 @@ def main(args):
     for i, batch in tqdm(enumerate(loader), initial=initial, total=total):
         if num_written >= args.size:
             break
-        imsize = batch['imsize'].size()[:2]
-        quantized_batch = model.quantize(batch['events'],
-                                         batch['timestamps'],
-                                         batch['sample_idx'],
-                                         imsize)
+        imsize = batch['images'].size()[-2:]
+        quantized_batch = copy.deepcopy(batch)
+        del quantized_batch['events']
+        with torch.no_grad():
+            quantized_batch['data'] = model.quantize(batch['events'],
+                                                     batch['timestamps'],
+                                                     batch['sample_idx'],
+                                                     imsize)
         encoded_batches.append(encode_quantized_batch(quantized_batch))
         num_written += \
             len(encoded_batches[-1]['elements_per_sample'])
         is_last = num_written >= args.size
         if (i + 1) % num_batches_per_write == 0 or is_last:
-            joined_batches = join_quantized_batches(encoded_batches)
+            joined_batches = join_batches(encoded_batches)
             while j in written_indices:
                 j += 1
             write_encoded_batch(args.output/f'{j}.hdf5', joined_batches)

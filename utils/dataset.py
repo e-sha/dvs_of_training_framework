@@ -489,19 +489,6 @@ def decode_quantized_batch(batch: typing.Dict) -> typing.Dict:
     return result
 
 
-def write_encoded_quantized_batch(path: Path,
-                                  batch: typing.Dict):
-    """Writes encoded quantized batch to a file in hdf5 file
-
-    Args:
-        path:
-            A file path to write
-        batch:
-            Same as an output of encode_batch
-    """
-    return None
-
-
 def read_data(descriptor, ranges):
     def is_final(element):
         assert isinstance(element, dict), element

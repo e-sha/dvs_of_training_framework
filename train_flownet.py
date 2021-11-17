@@ -30,8 +30,10 @@ script_dir = Path(__file__).resolve().parent
 
 def parse_args(args, is_write=True):
     parser = ArgumentParser()
-    args = add_train_arguments(parser).parse_args(args)
-    args = add_preprocessed_dataset_arguments(args)
+    parser = add_train_arguments(parser)
+    parser = add_preprocessed_dataset_arguments(parser)
+
+    args = parser.parse_args(args)
     args = validate_train_args(args)
     args = choose_data_path(args)
 
