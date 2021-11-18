@@ -45,7 +45,8 @@ def select_batch_info_ranges(elements_per_sample: torch.Tensor,
     assert isinstance(sample_end, int)
     assert sample_end > sample_begin
 
-    timestamps_shift = cumsum_with_prefix(elements_per_sample + 1)
+    timestamps_shift = cumsum_with_prefix(
+            elements_per_sample.to(torch.int64) + 1)
     timestamp_begin = timestamps_shift[sample_begin].item()
     timestamp_end = timestamps_shift[sample_end].item()
     return {'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
