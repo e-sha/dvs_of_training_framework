@@ -802,6 +802,7 @@ class PreprocessedDataloader:
     def __init__(self,
                  path: Path,
                  batch_size: int,
+                 is_raw: bool,
                  cache_dir=None):
         """Inits PreprocessedDataloader with path to preprocessed dataset
         and batch size
@@ -811,10 +812,14 @@ class PreprocessedDataloader:
                 A path to the preprocessed dataset
             batch_size:
                 Number of samples per batch
+            is_raw:
+                An indicator of the raw event stream instead,
+                not the event images
             cache_dir:
                 A directory to cache the preprocessed dataset.
         """
         self.batch_size = batch_size
+        self.is_raw = is_raw
         self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
         assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
                                     '(on .hdf5 files)'
@@ -868,24 +873,38 @@ class PreprocessedDataloader:
         """Returns an iterator over the dataset"""
         return self
 
+    @staticmethod
+    def _read_raw_batch(descriptor, begin, end):
+        """Reads a batch of row events from a file"""
+        events_per_element = torch.tensor(
+                descriptor['events']['events_per_element'])
+        elements_per_sample = torch.tensor(descriptor['elements_per_sample'])
+        return read_encoded_batch(descriptor, events_per_element,
+                                  elements_per_sample, begin, end)
+
+    @staticmethod
+    def _read_quantized_batch(descriptor, begin, end):
+        """Reads a quantized batch from a file"""
+        channels_per_sample = torch.tensor(descriptor['channels_per_sample'])
+        elements_per_sample = torch.tensor(descriptor['elements_per_sample'])
+        return read_encoded_quantized_batch(descriptor, channels_per_sample,
+                                            elements_per_sample, begin, end)
+
     def __next__(self):
         """Returns the next batch"""
         num2read = self.batch_size
         batches = []
+        read_fun = self._read_raw_batch if self.is_raw \
+            else self._read_quantized_batch
+        decode_fun = decode_batch if self.is_raw else decode_quantized_batch
         while num2read > 0:
             left = self._file2size(self.current_file.name) - self.sample_index
             cur_num2read = min(left, num2read)
             next_sample_index = self.sample_index + cur_num2read
             if cur_num2read > 0:
                 with h5py.File(self.current_file.name, 'r') as f:
-                    events_per_element = torch.tensor(
-                            f['events']['events_per_element'])
-                    elements_per_sample = torch.tensor(
-                            f['elements_per_sample'])
-                    batches.append(read_encoded_batch(f, events_per_element,
-                                                      elements_per_sample,
-                                                      self.sample_index,
-                                                      next_sample_index))
+                    batches.append(read_fun(f, self.sample_index,
+                                            next_sample_index))
             self.sample_index = next_sample_index
             num2read -= cur_num2read
             if num2read > 0:
@@ -894,7 +913,7 @@ class PreprocessedDataloader:
                 self.current_file = self.iterator.next()
                 self.sample_index = 0
         encoded_batch = join_batches(batches)
-        return decode_batch(encoded_batch)
+        return decode_fun(encoded_batch)
 
 
 def add_sample_index(events, i):

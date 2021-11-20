@@ -47,9 +47,12 @@ def process_minibatch(model,
                                          (batch['timestamps'],
                                           batch['sample_idx'],
                                           batch['images']))
-    events = batch['events']
-    for k in set.difference(set(events.keys()), {'size'}):
-        events[k] = events[k].to(device)
+    if is_raw:
+        events = batch['events']
+        for k in set.difference(set(events.keys()), {'size'}):
+            events[k] = events[k].to(device)
+    else:
+        events = batch['data'].to(device)
     timers('batch2gpu').stop()
     shape = images.size()[-2:]
     timers('forward').start()
@@ -135,7 +138,7 @@ def train(model,
     for batch in loader:
         if global_step == num_steps * accumulation_steps:
             break
-        num_events = batch['events']['x'].numel()
+        num_events = batch['events']['x'].numel() if is_raw else 0
         if num_events > max_events_per_batch:
             num_skipped += 1
             num_processed = global_step - init_batch

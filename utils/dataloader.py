@@ -50,6 +50,7 @@ def get_trainset_params(args):
     params.collapse_length = args.cl
     params.shuffle = True
     params.infinite = True
+    params.is_raw = args.is_raw
     params.preprocessed_dataset_path = args.preprocessed_dataset_path \
         if 'preprocessed_dataset_path' in args else None
     params.cache_dir = args.cache_dir if 'cache_dir' in args else None
@@ -86,6 +87,7 @@ def get_dataloader(params):
         return PreprocessedDataloader(
             path=params.preprocessed_dataset_path,
             batch_size=params.batch_size,
+            is_raw=params.is_raw,
             cache_dir=params.cache_dir)
     loader_kwargs = {}
     if not params.infinite:
