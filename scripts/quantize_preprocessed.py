@@ -66,6 +66,7 @@ def main(args):
     for filename in written_files:
         with h5py.File(filename, 'r') as f:
             num_written += len(f['elements_per_sample'])
+    loader.set_index(num_written)
     num_batches_per_write = (args.samples_per_file - 1) // args.mbs + 1
     encoded_batches = []
     j = 0
@@ -82,16 +83,20 @@ def main(args):
                                                      batch['timestamps'],
                                                      batch['sample_idx'],
                                                      imsize)
+        del batch
         encoded_batches.append(encode_quantized_batch(quantized_batch))
+        del quantized_batch
         num_written += \
             len(encoded_batches[-1]['elements_per_sample'])
         is_last = num_written >= args.size
         if (i + 1) % num_batches_per_write == 0 or is_last:
             joined_batches = join_batches(encoded_batches)
+            del encoded_batches
             while j in written_indices:
                 j += 1
             write_encoded_batch(args.output/f'{j}.hdf5', joined_batches)
             j += 1
+            del joined_batches
             encoded_batches = []
         if is_last:
             break
