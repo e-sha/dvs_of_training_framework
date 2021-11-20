@@ -45,8 +45,8 @@ def select_batch_info_ranges(elements_per_sample: torch.Tensor,
     assert isinstance(sample_end, int)
     assert sample_end > sample_begin
 
-    timestamps_shift = cumsum_with_prefix(
-            elements_per_sample.to(torch.int64) + 1)
+    timestamps_shift = cumsum_with_prefix(elements_per_sample + 1,
+                                          torch.long)
     timestamp_begin = timestamps_shift[sample_begin].item()
     timestamp_end = timestamps_shift[sample_end].item()
     return {'timestamps': {'begin': timestamp_begin, 'end': timestamp_end},
@@ -89,8 +89,8 @@ def select_encoded_ranges(events_per_element: torch.Tensor,
     assert isinstance(sample_end, int)
     assert sample_end > sample_begin
 
-    events_shift = cumsum_with_prefix(events_per_element)
-    elements_shift = cumsum_with_prefix(elements_per_sample)
+    events_shift = cumsum_with_prefix(events_per_element, torch.long)
+    elements_shift = cumsum_with_prefix(elements_per_sample, torch.long)
 
     events_per_element_begin = elements_shift[sample_begin].item()
     events_per_element_end = elements_shift[sample_end].item()
@@ -140,7 +140,7 @@ def select_quantized_ranges(channels_per_sample: torch.Tensor,
     assert isinstance(sample_end, int)
     assert sample_end > sample_begin
 
-    channels_shift = cumsum_with_prefix(channels_per_sample)
+    channels_shift = cumsum_with_prefix(channels_per_sample, torch.long)
 
     channels_begin = channels_shift[sample_begin].item()
     channels_end = channels_shift[sample_end].item()
