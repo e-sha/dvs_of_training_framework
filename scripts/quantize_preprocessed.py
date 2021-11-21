@@ -58,7 +58,6 @@ def parse_args(args, is_write=True):
 
 def main(args):
     model = init_model(args, device=args.device)
-    loader = get_dataloader(get_trainset_params(args))
     args.output.mkdir(exist_ok=True)
     written_files = list(args.output.glob('*.hdf5'))
     written_indices = [int(f.stem) for f in written_files]
@@ -66,7 +65,7 @@ def main(args):
     for filename in written_files:
         with h5py.File(filename, 'r') as f:
             num_written += len(f['elements_per_sample'])
-    loader.set_index(num_written)
+    loader = get_dataloader(get_trainset_params(args), sample_idx=num_written)
     num_batches_per_write = (args.samples_per_file - 1) // args.mbs + 1
     encoded_batches = []
     j = 0

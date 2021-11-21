@@ -1,9 +1,10 @@
 from time import perf_counter
+from tqdm import tqdm
 
 
 def get_iterable_performance(loader,
-                             start: int = 20,
-                             num_iters: int = 50):
+                             start: int = 100,
+                             num_iters: int = 500):
     """Returns average dataloader performance
 
     Args:
@@ -20,7 +21,7 @@ def get_iterable_performance(loader,
     assert num_iters > 0
     t0 = None
     t1 = None
-    for i, _ in enumerate(loader):
+    for i, _ in tqdm(enumerate(loader), total=start + num_iters):
         if i == start:
             t0 = perf_counter()
         elif i == start + num_iters:

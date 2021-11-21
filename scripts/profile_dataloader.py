@@ -8,6 +8,7 @@ except ImportError:
 
     script_path = Path(__file__).resolve().parent
     sys.path.append(str(script_path.parent))
+    from train_flownet import get_trainset_params
 
 
 try:
