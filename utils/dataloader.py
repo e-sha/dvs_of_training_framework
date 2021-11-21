@@ -82,13 +82,15 @@ def get_dataset(params):
     return Dataset(**kwargs)
 
 
-def get_dataloader(params):
+def get_dataloader(params, sample_idx=0):
     if params.preprocessed_dataset_path is not None:
-        return PreprocessedDataloader(
+        loader = PreprocessedDataloader(
             path=params.preprocessed_dataset_path,
             batch_size=params.batch_size,
             is_raw=params.is_raw,
             cache_dir=params.cache_dir)
+        loader.set_index(sample_idx)
+        return loader
     loader_kwargs = {}
     if not params.infinite:
         loader_kwargs['shuffle'] = params.shuffle

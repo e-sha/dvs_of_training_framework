@@ -140,8 +140,6 @@ def main():
 
     model = init_model(args, device)
 
-    loader = get_dataloader(get_trainset_params(args))
-
     serializer = Serializer(args.model,
                             args.num_checkpoints,
                             args.permanent_interval)
@@ -185,6 +183,9 @@ def main():
         global_step = 0
         samples_passed = 0
         hooks['serialization'](global_step, samples_passed)
+
+    loader = get_dataloader(get_trainset_params(args),
+                            sample_idx=samples_passed)
 
     if not args.skip_validation:
         hooks['validation'](global_step, samples_passed)
