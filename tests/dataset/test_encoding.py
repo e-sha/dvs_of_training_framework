@@ -294,20 +294,20 @@ class TestDatasetEncoding:
             dirname = Path(dirname)
             for i, part in enumerate(self.encoded_parts):
                 write_encoded_batch(dirname/f'{i}.hdf5', part)
-            dataloader = PreprocessedDataloader(dirname, 2)
+            dataloader = PreprocessedDataloader(dirname, 2, is_raw=True)
             batch = next(dataloader)
             compare(batch, decode_batch(self.encoded_parts[0]))
 
-            dataloader = PreprocessedDataloader(dirname, 1)
+            dataloader = PreprocessedDataloader(dirname, 1, is_raw=True)
             dataloader.set_index(2)
             batch = next(dataloader)
             compare(batch, decode_batch(self.encoded_parts[1]))
 
-            dataloader = PreprocessedDataloader(dirname, 3)
+            dataloader = PreprocessedDataloader(dirname, 3, is_raw=True)
             batch = next(dataloader)
             compare(batch, decode_batch(join_batches(self.encoded_parts)))
 
-            dataloader = PreprocessedDataloader(dirname, 5)
+            dataloader = PreprocessedDataloader(dirname, 5, is_raw=True)
             batch = next(dataloader)
             compare(batch, decode_batch(join_batches(
                 self.encoded_parts + [self.encoded_parts[0]])))
@@ -347,7 +347,9 @@ class TestDatasetEncoding:
             dirname = Path(dirname)
             batch = next(iter(data_loader))
             write_encoded_batch(dirname/'0.hdf5', encode_batch(**batch))
-            dataloader = PreprocessedDataloader(dirname, batch_size)
+            dataloader = PreprocessedDataloader(dirname,
+                                                batch_size,
+                                                is_raw=True)
 
             logger = torch.utils.tensorboard.SummaryWriter(log_dir=dirname)
             train(model=model, device=args.device, loader=dataloader,
