@@ -75,6 +75,13 @@ def main(args):
         if num_written >= args.size:
             break
         imsize = batch['images'].size()[-2:]
+        for k in set(batch['events'].keys()) - {'size'}:
+            batch['events'][k] = batch['events'][k].to(args.device)
+        for k in set(batch.keys()) - {'events', 'size', 'augmentation_params'}:
+            batch[k] = batch[k].to(args.device)
+        for k in set(batch['augmentation_params'].keys()):
+            batch['augmentation_params'][k] = \
+                    batch['augmentation_params'][k].to(args.device)
         quantized_batch = copy.deepcopy(batch)
         del quantized_batch['events']
         with torch.no_grad():
