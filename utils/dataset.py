@@ -454,6 +454,16 @@ def encode_quantized_batch(batch: typing.Dict) -> typing.Dict:
         images is a uint8 tensor representing images;
         augmentation_params is dictionary of augmentation parameters.
     """
+    def to_cpu(data):
+        if isinstance(data, dict):
+            for k, v in data.items():
+                data[k] = to_cpu(v)
+            return data
+        if isinstance(data, torch.Tensor):
+            return data.cpu()
+        return data
+
+    batch = to_cpu(batch)
     B, C, H, W = batch['data'].size()
     result = {'data': batch['data'].reshape(B*C, H, W),
               'channels_per_sample': torch.full(size=(B, ),
