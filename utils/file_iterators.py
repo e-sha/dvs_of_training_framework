@@ -97,11 +97,47 @@ class FileIteratorWithCache:
     >>> loader.next() # returns the second element. The first
                       # one is still stored
     /tmp/1.hdf5
-    >>> loader.step() # doesn't remov anything from the cache:
+    >>> loader.step() # doesn't remove anything from the cache:
                       # 0.hdf5 1.hdf5, 2.hdf5
     >>> loader.next()
     /tmp/2.hdf5
     >>> loader.next() # error. 3.hdf5 is not in the cache.
+
+    The desired state:
+
+    Assume:
+    - Processing of a single file takes 1 period
+    - Loading of a single file takes 2 periods
+    - Cache size is 3 files
+    - Load cache is 1 file
+
+    The expected behaviour when process_only_once is set to False
+    Timestamp|   Cache  |Load cache|Used file
+    =========================================
+        0    |__, __, __|    F0    |
+        1    |__, __, __|    F0    |
+        2    |F0, __, __|    F1    |    F0
+        3    |F0, __, __|    F1    |    F0 <- we second time use the same file
+        4    |F0, F1, __|    F2    |    F1
+        5    |F0, F1, __|    F2    |    F0 <- new cycle
+        6    |F0, F1, F2|    F3    |    F1
+        7    |F0, F1, F2|    F3    |    F2
+        8    |F1, F2, F3|    F4    |    F3
+        9    |F1, F2, F3|    F4    |    F1 <- new cycle
+
+    The expected behaviour when process_only_once is set to True
+    Timestamp|   Cache  |Load cache|Used file
+    =========================================
+        0    |__, __, __|    F0    |
+        1    |__, __, __|    F0    |
+        2    |F0, __, __|    F1    |    F0
+        3    |__, __, __|    F1    |       <- waiting
+        4    |F1, __, __|    F2    |    F1
+        5    |__, __, __|    F2    |       <- waiting
+        6    |F2, __, __|    F3    |    F2
+        7    |__, __, __|    F3    |       <- waiting
+        8    |F3, __, __|    F4    |    F3
+        9    |__, __, __|    F4    |       <- waiting
     """
 
     def __init__(self,
