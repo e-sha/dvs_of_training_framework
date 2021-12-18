@@ -45,7 +45,9 @@ def create_file_iterator(files,
     files = list(Path(f) for f in files)
     if cache_dir is None:
         return FileIterator(files)
-    iterator = FileIteratorWithCache(files, cache_dir, num_files_in_cache)
+    iterator = FileIteratorWithCache(files,
+                                     FileLoader(cache_dir),
+                                     num_files_in_cache)
     if num_files_in_cache < len(files):
         return iterator
     # if we can cache all files then cache them and use the basic FileIterator
@@ -84,6 +86,20 @@ class FileIterator:
         self.index = 0
 
 
+class FileLoader:
+    def __init__(self, cache_dir):
+        self.cache_dir = cache_dir
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+
+    def __call__(self, filename):
+        with tempfile.NamedTemporaryFile(dir=self.cache_dir,
+                                         suffix=filename.suffix,
+                                         delete=False) as f:
+            cached = Path(f.name)
+        shutil.copyfile(filename, cached)
+        return cached
+
+
 class FileIteratorWithCache:
     """Loads files from a remote storage to the cache.
 
@@ -91,7 +107,8 @@ class FileIteratorWithCache:
 
     To use:
     # loads the first 2 elements: 0.hdf5, 1.hdf5
-    >>> loader = FileLoader(Path('/storage').glob('*.hdf5'), Path('/tmp'), 2)
+    >>> loader = FileLoader(Path('/storage').glob('*.hdf5'),
+                            FileLoader(Path('/tmp')), 2)
     >>> loader.next() # returns the first element
     /tmp/0.hdf5
     >>> loader.next() # returns the second element. The first
@@ -142,29 +159,23 @@ class FileIteratorWithCache:
 
     def __init__(self,
                  remote_files,
-                 cache_dir,
+                 file_loader,
                  num_files_to_cache=5):
-        def thread_function(cache_dir, request_queue, response_queue):
-            cache_dir.mkdir(exist_ok=True, parents=True)
+        def thread_function(request_queue, response_queue, file_loader):
             while True:
                 remote = request_queue.get()
                 if remote is None:
                     break
-                with tempfile.NamedTemporaryFile(dir=cache_dir,
-                                                 suffix=remote.suffix,
-                                                 delete=False) as f:
-                    cached = Path(f.name)
-                shutil.copyfile(remote, cached)
-                response_queue.put(cached)
+                response_queue.put(file_loader(remote))
 
         self.remote_files = copy.deepcopy(list(remote_files))
         self.request_queue = queue.Queue()
         self.response_queue = queue.Queue()
         self._init_cache(num_files_to_cache)
         self.read_thread = threading.Thread(target=thread_function,
-                                            args=(cache_dir,
-                                                  self.request_queue,
-                                                  self.response_queue))
+                                            args=(self.request_queue,
+                                                  self.response_queue,
+                                                  file_loader))
         self.read_thread.start()
 
     def _init_cache(self, num_files_to_cache):
