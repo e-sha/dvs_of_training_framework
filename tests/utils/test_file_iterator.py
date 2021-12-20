@@ -5,8 +5,10 @@ from utils.file_iterators import FileLoader
 
 
 def test_FileLoader():
-    tmp_dir = Path(TemporaryDirectory(dir='/tmp'))
-    cache_dir = Path(TemporaryDirectory(dir='/tmp'))
+    tmp_dir_holder = TemporaryDirectory(dir='/tmp')
+    cache_dir_holder = TemporaryDirectory(dir='/tmp')
+    tmp_dir = Path(tmp_dir_holder.name)
+    cache_dir = Path(cache_dir_holder.name)
     filename = tmp_dir/'123'
     text = "456"
     filename.write_text(text)
