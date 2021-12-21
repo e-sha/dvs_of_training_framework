@@ -161,7 +161,23 @@ class FileIteratorWithCache:
                  remote_files,
                  file_loader,
                  num_files_to_cache=5,
+                 num_non_cached_files=2,
                  process_only_once=True):
+        """Initializes the iterator
+
+        Args:
+            remote_files:
+                A list of the files to load
+            file_loader:
+                A callable that can copy the input file to a cache
+            num_files_to_cache:
+                A maximum number of files in a cache
+            num_non_cached_files:
+                A maximum number of downloaded, but not yet cached files
+                to store. It is usefull if processing is slower than loading
+            process_only_once:
+                Controls allowance of multiple passes through the file.
+        """
         def thread_function(request_queue, response_queue, file_loader):
             while True:
                 remote = request_queue.get()
@@ -180,6 +196,11 @@ class FileIteratorWithCache:
                                                   file_loader),
                                             daemon=True)
         self.read_thread.start()
+        # files in the current cache
+        self.cached_files = []
+        # files that was loaded but not cached
+        self.loaded_files = []
+        self.loaded_files_lock = threading.Lock()
 
     def _init_cache(self, num_files_to_cache):
         num_files_to_cache = min(num_files_to_cache, len(self.remote_files))
