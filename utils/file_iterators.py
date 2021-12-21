@@ -160,7 +160,8 @@ class FileIteratorWithCache:
     def __init__(self,
                  remote_files,
                  file_loader,
-                 num_files_to_cache=5):
+                 num_files_to_cache=5,
+                 process_only_once=True):
         def thread_function(request_queue, response_queue, file_loader):
             while True:
                 remote = request_queue.get()
@@ -168,6 +169,7 @@ class FileIteratorWithCache:
                     break
                 response_queue.put(file_loader(remote))
 
+        self.process_only_once = process_only_once
         self.remote_files = copy.deepcopy(list(remote_files))
         self.request_queue = queue.Queue()
         self.response_queue = queue.Queue()
@@ -175,7 +177,8 @@ class FileIteratorWithCache:
         self.read_thread = threading.Thread(target=thread_function,
                                             args=(self.request_queue,
                                                   self.response_queue,
-                                                  file_loader))
+                                                  file_loader),
+                                            daemon=True)
         self.read_thread.start()
 
     def _init_cache(self, num_files_to_cache):
