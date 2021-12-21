@@ -184,7 +184,7 @@ class FileIteratorWithCache:
             self.request_queue.put(self.remote_files[i])
         self.num_left = num_files_to_cache
         self.num_files_to_cache = num_files_to_cache
-        self.cached_end = i % len(self.remote_files)
+        self.cached_end = (i + 1) % len(self.remote_files)
 
     def next(self):
         """ Returns path of the next cached element.

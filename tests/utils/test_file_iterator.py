@@ -1,6 +1,5 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from time import sleep
 from threading import Barrier, Lock, Thread
 
 from utils.file_iterators import FileLoader, FileIteratorWithCache
@@ -75,35 +74,12 @@ class TestFileIterator:
         processor = Processing(files2process, file_loader, files2cache)
         processing_thread = Thread(target=processor, args=tuple(), daemon=True)
         processing_thread.start()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
-        barrier.wait()
-        sleep(0.1)
-        print(processor.get_last_content())
+
+        expected_results = [x
+                            for x in ['None', 'F0', 'F1', 'F2', 'F3']
+                            for _ in range(2)]
+        for expected in expected_results:
+            processing_thread.join(0.01)
+            actual = processor.get_last_content()
+            barrier.wait()
+            assert actual == expected
