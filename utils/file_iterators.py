@@ -74,7 +74,7 @@ class FileIterator:
         self.files = copy.deepcopy(list(files))
         self.index = 0
 
-    def next(self):
+    def next(self, blocking=True):
         result = self.files[self.index]
         self.index = (self.index + 1) % len(self.files)
         return DummyFile(result)
@@ -210,13 +210,21 @@ class FileIteratorWithCache:
         self.num_files_to_cache = num_files_to_cache
         self.cached_end = (i + 1) % len(self.remote_files)
 
-    def next(self):
+    def next(self, block=True):
         """ Returns path of the next cached element.
+
+        Args:
+            block:
+                If the call is not blocking, the function may return None
         """
         # it prevents deadlock
         assert self.num_left > 0, "No cached files left"
-        self.num_left -= 1
-        return ReleasableFile(self.response_queue.get())
+        try:
+            result = ReleasableFile(self.response_queue.get(block))
+            self.num_left -= 1
+            return result
+        except queue.Empty():
+            return None
 
     def step(self):
         """ Performs a step of the sliding window.
