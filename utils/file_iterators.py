@@ -223,7 +223,7 @@ class FileIteratorWithCache:
             result = ReleasableFile(self.response_queue.get(block))
             self.num_left -= 1
             return result
-        except queue.Empty():
+        except queue.Empty:
             return None
 
     def step(self):

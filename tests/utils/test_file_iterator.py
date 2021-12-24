@@ -1,6 +1,7 @@
 from pathlib import Path
+from queue import Queue
 from tempfile import TemporaryDirectory
-from threading import Barrier, Lock, Thread
+from threading import Thread
 
 from utils.file_iterators import FileLoader, FileIteratorWithCache
 
@@ -20,44 +21,53 @@ def test_FileLoader():
 
 
 class FileLoaderWithDelay:
-    def __init__(self, barrier, N):
-        self.barrier = barrier
+    def __init__(self, N, in_q, out_q):
         self.N = N
         self.cache_dir_holder = TemporaryDirectory(dir='/tmp')
         self.file_loader = FileLoader(Path(self.cache_dir_holder.name))
+        self.in_q = in_q
+        self.out_q = out_q
 
     def __call__(self, filename):
-        for _ in range(self.N):
-            self.barrier.wait()
-        return self.file_loader(filename)
+        for _ in range(self.N - 1):
+            token = self.in_q.get()
+            self.out_q.put(token)
+        token = self.in_q.get()
+        result = self.file_loader(filename)
+        self.out_q.put(token)
+        return result
 
 
 class Processing:
     def __init__(self):
         self.last_loaded = None
-        self.lock = Lock()
 
     def __call__(self,
                  files2process,
                  file_loader,
                  files2cache,
-                 process_only_once):
+                 process_only_once,
+                 in_q,
+                 out_q):
         self.iterator = FileIteratorWithCache(
                 files2process, file_loader, files2cache,
                 process_only_once=process_only_once)
         while True:
-            loaded = self.iterator.next()
-            with self.lock:
-                self.last_loaded = loaded
+            token = in_q.get()
+            loaded = self.iterator.next(block=False)
+            self.last_loaded = loaded
+            if loaded is None:
+                out_q.put(token)
+                continue
             self.iterator.step()
+            out_q.put(token)
 
     def get_last_content(self):
-        with self.lock:
-            if self.last_loaded:
-                text = self.last_loaded.name.read_text()
-                # the document was checked thus change it to None
-                self.last_loaded = None
-                return text
+        if self.last_loaded:
+            text = self.last_loaded.name.read_text()
+            # the document was checked thus change it to None
+            self.last_loaded = None
+            return text
         return 'None'
 
 
@@ -72,14 +82,16 @@ class TestFileIterator:
             self.files2process[-1].write_text(f'F{i}')
 
     def test_process_only_once(self):
-        barrier = Barrier(2)
-        file_loader = FileLoaderWithDelay(barrier, self.time2load)
+        in_q, int_q, out_q = Queue(), Queue(), Queue()
+        file_loader = FileLoaderWithDelay(self.time2load, in_q, int_q)
         processor = Processing()
         processing_thread = Thread(target=processor,
                                    args=(self.files2process,
                                          file_loader,
                                          self.files2cache,
-                                         True),
+                                         True,
+                                         int_q,
+                                         out_q),
                                    daemon=True)
         processing_thread.start()
 
@@ -87,20 +99,22 @@ class TestFileIterator:
                             for x in ['None', 'F0', 'F1', 'F2', 'F3']
                             for y in [x, 'None']]
         for expected in expected_results:
-            processing_thread.join(0.01)
             actual = processor.get_last_content()
-            barrier.wait()
             assert actual == expected
+            in_q.put('token')
+            out_q.get()
 
     def test_allow_multiple_passes(self):
-        barrier = Barrier(2)
-        file_loader = FileLoaderWithDelay(barrier, self.time2load)
+        in_q, int_q, out_q = Queue(), Queue(), Queue()
+        file_loader = FileLoaderWithDelay(self.time2load, in_q, int_q)
         processor = Processing()
         processing_thread = Thread(target=processor,
                                    args=(self.files2process,
                                          file_loader,
                                          self.files2cache,
-                                         False),
+                                         False,
+                                         int_q,
+                                         out_q),
                                    daemon=True)
         processing_thread.start()
 
@@ -109,5 +123,6 @@ class TestFileIterator:
         for expected in expected_results:
             processing_thread.join(0.01)
             actual = processor.get_last_content()
-            barrier.wait()
             assert actual == expected
+            in_q.put('token')
+            out_q.get()
