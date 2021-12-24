@@ -79,9 +79,6 @@ class FileIterator:
         self.index = (self.index + 1) % len(self.files)
         return DummyFile(result)
 
-    def step(self):
-        pass
-
     def reset(self):
         self.index = 0
 
@@ -221,19 +218,12 @@ class FileIteratorWithCache:
         assert self.num_left > 0, "No cached files left"
         try:
             result = ReleasableFile(self.response_queue.get(block))
-            self.num_left -= 1
+
+            self.request_queue.put(self.remote_files[self.cached_end])
+            self.cached_end = (self.cached_end + 1) % len(self.remote_files)
             return result
         except queue.Empty:
             return None
-
-    def step(self):
-        """ Performs a step of the sliding window.
-
-        Loads the next non-cached one.
-        """
-        self.request_queue.put(self.remote_files[self.cached_end])
-        self.cached_end = (self.cached_end + 1) % len(self.remote_files)
-        self.num_left += 1
 
     def reset(self):
         # remove all cached files but not read files

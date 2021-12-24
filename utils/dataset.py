@@ -872,7 +872,6 @@ class PreprocessedDataloader:
                 break
             self.sample_index -= file_size
             self.current_file.release()
-            self.iterator.step()
             self.current_file = self.iterator.next()
 
     def __len__(self):
@@ -919,7 +918,6 @@ class PreprocessedDataloader:
             num2read -= cur_num2read
             if num2read > 0:
                 self.current_file.release()
-                self.iterator.step()
                 self.current_file = self.iterator.next()
                 self.sample_index = 0
         encoded_batch = join_batches(batches)

@@ -59,7 +59,6 @@ class Processing:
             if loaded is None:
                 out_q.put(token)
                 continue
-            self.iterator.step()
             out_q.put(token)
 
     def get_last_content(self):
