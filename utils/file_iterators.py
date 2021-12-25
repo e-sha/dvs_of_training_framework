@@ -27,15 +27,31 @@ class ReleasableFile:
 
     def __init__(self, filename):
         self.filename = filename
-        self.exist = self.filename.is_file()
+        self.exist = self.filename.is_file
+        # access to this field can be performed without a lock
+        # as only the same thread can set in_use to True and remove the file
+        self.in_use = True
 
     @property
     def name(self):
-        assert self.exist, f'File {self.filename} doesn\'t exist'
+        assert self.exist(), f'File {self.filename} doesn\'t exist'
         return self.filename
 
     def release(self):
-        assert self.exist, f'File {self.filename} doesn\'t exist'
+        assert self.exist(), f'File {self.filename} doesn\'t exist'
+        self.in_use = False
+
+    def is_in_use(self):
+        assert self.exist(), f'File {self.filename} doesn\'t exist'
+        return self.in_use
+
+    def start_use(self):
+        assert self.exist(), f'File {self.filename} doesn\'t exist'
+        self.in_use = True
+
+    def remove(self):
+        assert self.exist(), f'File {self.filename} doesn\'t exist'
+        assert not self.in_use, 'Currently used file cannot be removed'
         self.filename.unlink()
 
 
@@ -64,7 +80,6 @@ class FileIterator:
     /tmp/0.hdf5
     >>> loader.next()
     /tmp/1.hdf5
-    >>> loader.step() # does nothing
     >>> loader.next()
     /tmp/2.hdf5
     """
@@ -111,11 +126,8 @@ class FileIteratorWithCache:
     >>> loader.next() # returns the second element. The first
                       # one is still stored
     /tmp/1.hdf5
-    >>> loader.step() # doesn't remove anything from the cache:
-                      # 0.hdf5 1.hdf5, 2.hdf5
     >>> loader.next()
     /tmp/2.hdf5
-    >>> loader.next() # error. 3.hdf5 is not in the cache.
 
     The desired state:
 
@@ -186,6 +198,15 @@ class FileIteratorWithCache:
         self.remote_files = copy.deepcopy(list(remote_files))
         self.request_queue = queue.Queue()
         self.response_queue = queue.Queue()
+
+        # files in the current cache
+        self.cached_files = []
+        # index of the next file in cache to return
+        self.idx = 0
+        # number of files not received from the read_thread
+        self.num_waited = 0
+        self.cached_end = 0
+
         self._init_cache(num_files_to_cache)
         self.read_thread = threading.Thread(target=thread_function,
                                             args=(self.request_queue,
@@ -193,19 +214,29 @@ class FileIteratorWithCache:
                                                   file_loader),
                                             daemon=True)
         self.read_thread.start()
-        # files in the current cache
-        self.cached_files = []
-        # files that was loaded but not cached
-        self.loaded_files = []
-        self.loaded_files_lock = threading.Lock()
 
     def _init_cache(self, num_files_to_cache):
         num_files_to_cache = min(num_files_to_cache, len(self.remote_files))
         for i in range(num_files_to_cache):
-            self.request_queue.put(self.remote_files[i])
-        self.num_left = num_files_to_cache
+            self._add_download_request()
         self.num_files_to_cache = num_files_to_cache
-        self.cached_end = (i + 1) % len(self.remote_files)
+
+    def _remove_from_cache(self):
+        assert len(self.cached_files) > 0
+        self.cached_files[0].remove()
+        self.cached_files = self.cached_files[1:]
+        self.idx = max(1, self.idx) - 1
+
+    def _get_loaded_file(self, block):
+        result = ReleasableFile(self.response_queue.get(block))
+        self.num_waited -= 1
+        self._add_download_request()
+        return result
+
+    def _add_download_request(self):
+        self.request_queue.put(self.remote_files[self.cached_end])
+        self.cached_end = (self.cached_end + 1) % len(self.remote_files)
+        self.num_waited += 1
 
     def next(self, block=True):
         """ Returns path of the next cached element.
@@ -214,20 +245,47 @@ class FileIteratorWithCache:
             block:
                 If the call is not blocking, the function may return None
         """
-        # it prevents deadlock
-        assert self.num_left > 0, "No cached files left"
-        try:
-            result = ReleasableFile(self.response_queue.get(block))
-
-            self.request_queue.put(self.remote_files[self.cached_end])
-            self.cached_end = (self.cached_end + 1) % len(self.remote_files)
-            return result
-        except queue.Empty:
-            return None
+        while self.process_only_once and self.idx != 0:
+            self._remove_from_cache()
+        # try to update the cache
+        while len(self.cached_files) < self.num_files_to_cache or \
+                not self.cached_files[0].is_in_use():
+            try:
+                result = self._get_loaded_file(False)
+                if len(self.cached_files) == self.num_files_to_cache and \
+                        not self.cached_files[0].is_in_use():
+                    self._remove_from_cache()
+                self.cached_files.append(result)
+                # if we have planed to start a new cycle
+                if self.idx == 0 and not self.cached_files[0].is_in_use():
+                    self.idx = len(self.cached_files) - 1
+            except queue.Empty:
+                break
+        # if there is no file to return
+        if len(self.cached_files) == 0:
+            if block:
+                result = self._get_loaded_file(True)
+                self.cached_files.append(result)
+                self.idx += 1
+                return self.cached_files[-1]
+            else:
+                return None
+        # we cannot store processed files
+        # if it is not allowed to process them several times
+        assert not self.process_only_once or self.idx == 0
+        result = self.cached_files[self.idx]
+        result.start_use()
+        self.idx += 1
+        if not self.process_only_once:
+            self.idx %= len(self.cached_files)
+        return result
 
     def reset(self):
         # remove all cached files but not read files
-        for i in range(self.num_left):
-            self.next().release()
-        self.num_left = 0
+        for i in range(self.num_waited):
+            result = ReleasableFile(self.response_queue.get(True))
+            result.release()
+            result.remove()
+        self.num_waited = 0
+        self.idx = 0
         self._init_cache(self.num_files_to_cache)

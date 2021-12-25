@@ -41,6 +41,7 @@ class FileLoaderWithDelay:
 class Processing:
     def __init__(self):
         self.last_loaded = None
+        self.iterator = None
 
     def __call__(self,
                  files2process,
@@ -54,20 +55,21 @@ class Processing:
                 process_only_once=process_only_once)
         while True:
             token = in_q.get()
-            loaded = self.iterator.next(block=False)
-            self.last_loaded = loaded
-            if loaded is None:
-                out_q.put(token)
-                continue
+            if self.last_loaded:
+                self.last_loaded.release()
+                self.last_loaded = None
+            self.last_loaded = self.iterator.next(block=False)
             out_q.put(token)
 
     def get_last_content(self):
         if self.last_loaded:
-            text = self.last_loaded.name.read_text()
-            # the document was checked thus change it to None
-            self.last_loaded = None
-            return text
+            return self.last_loaded.name.read_text()
         return 'None'
+
+    def get_cached_files(self):
+        if self.iterator is None:
+            return []
+        return [f.name.read_text() for f in self.iterator.cached_files]
 
 
 class TestFileIterator:
@@ -97,9 +99,16 @@ class TestFileIterator:
         expected_results = [y
                             for x in ['None', 'F0', 'F1', 'F2', 'F3']
                             for y in [x, 'None']]
-        for expected in expected_results:
+        expected_cached = [[], [],
+                           ['F0'], [],
+                           ['F1'], [],
+                           ['F2'], [],
+                           ['F3'], []]
+        for expected in zip(expected_results, expected_cached):
             actual = processor.get_last_content()
-            assert actual == expected
+            cached = processor.get_cached_files()
+            assert actual == expected[0]
+            assert cached == expected[1]
             in_q.put('token')
             out_q.get()
 
@@ -119,9 +128,16 @@ class TestFileIterator:
 
         expected_results = ['None', 'None', 'F0', 'F0', 'F1',
                             'F0', 'F1', 'F2', 'F3', 'F1']
-        for expected in expected_results:
+        expected_cached = [[], [],
+                           ['F0'], ['F0'],
+                           ['F0', 'F1'], ['F0', 'F1'],
+                           ['F0', 'F1', 'F2'], ['F0', 'F1', 'F2'],
+                           ['F1', 'F2', 'F3'], ['F1', 'F2', 'F3']]
+        for expected in zip(expected_results, expected_cached):
             processing_thread.join(0.01)
             actual = processor.get_last_content()
-            assert actual == expected
+            cached = processor.get_cached_files()
+            assert actual == expected[0]
+            assert cached == expected[1]
             in_q.put('token')
             out_q.get()
