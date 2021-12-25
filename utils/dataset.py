@@ -813,7 +813,8 @@ class PreprocessedDataloader:
                  path: Path,
                  batch_size: int,
                  is_raw: bool,
-                 cache_dir=None):
+                 cache_dir=None,
+                 process_only_once=True):
         """Inits PreprocessedDataloader with path to preprocessed dataset
         and batch size
 
@@ -827,13 +828,17 @@ class PreprocessedDataloader:
                 not the event images
             cache_dir:
                 A directory to cache the preprocessed dataset.
+            process_only_once:
+                Doesn't allow to iterate over the same cached
+                files several times.
         """
         self.batch_size = batch_size
         self.is_raw = is_raw
         self.files = sorted(path.glob('*.hdf5'), key=lambda x: int(x.stem))
         assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
                                     '(on .hdf5 files)'
-        self.iterator = create_file_iterator(self.files, cache_dir)
+        self.iterator = create_file_iterator(
+            self.files, cache_dir, process_only_once=process_only_once)
         self.sample_index = 0
         num_samples_per_file = []
         for file in self.files:

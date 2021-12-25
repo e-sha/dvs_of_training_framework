@@ -57,13 +57,15 @@ class ReleasableFile:
 
 def create_file_iterator(files,
                          cache_dir=None,
-                         num_files_in_cache=5):
+                         num_files_in_cache=5,
+                         process_only_once=True):
     files = list(Path(f) for f in files)
     if cache_dir is None:
         return FileIterator(files)
     iterator = FileIteratorWithCache(files,
                                      FileLoader(cache_dir),
-                                     num_files_in_cache)
+                                     num_files_in_cache,
+                                     process_only_once=process_only_once)
     if num_files_in_cache < len(files):
         return iterator
     # if we can cache all files then cache them and use the basic FileIterator

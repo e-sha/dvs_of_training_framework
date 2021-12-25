@@ -82,13 +82,14 @@ def get_dataset(params):
     return Dataset(**kwargs)
 
 
-def get_dataloader(params, sample_idx=0):
+def get_dataloader(params, sample_idx=0, process_only_once=True):
     if params.preprocessed_dataset_path is not None:
         loader = PreprocessedDataloader(
             path=params.preprocessed_dataset_path,
             batch_size=params.batch_size,
             is_raw=params.is_raw,
-            cache_dir=params.cache_dir)
+            cache_dir=params.cache_dir,
+            process_only_once=process_only_once)
         loader.set_index(sample_idx)
         return loader
     loader_kwargs = {}

@@ -185,7 +185,8 @@ def main():
         hooks['serialization'](global_step, samples_passed)
 
     loader = get_dataloader(get_trainset_params(args),
-                            sample_idx=samples_passed)
+                            sample_idx=samples_passed,
+                            process_only_once=False)
 
     if not args.skip_validation:
         hooks['validation'](global_step, samples_passed)
