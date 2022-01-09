@@ -1,4 +1,4 @@
-torch==1.7.0
+torch
 torchvision
 numpy
 h5py
@@ -7,3 +7,7 @@ tqdm
 parse
 tensorboard
 future
+pytest
+torch-scatter
+psutil
+gpuutils

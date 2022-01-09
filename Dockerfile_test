@@ -1,0 +1,32 @@
+from python:3.9
+LABEL maintainer="shalnov.eugen@gmail.com"
+
+ENV ROOT /app
+ENV DEBIAN_FRONTEND noninteractive
+
+# Set the working directory to ROOT
+WORKDIR ${ROOT}
+
+# install pip
+RUN apt update && apt install -y \
+  python3-dev \
+  cmake \
+  libeigen3-dev \
+  git \
+  python3-setuptools \
+  python3-opencv \
+  libhdf5-dev \
+  vim
+
+# copy files
+ADD requirements.txt ./
+# install python packages
+RUN python3 -m pip install -r requirements.txt -f https://data.pyg.org/whl/torch-1.10.0+cpu.html -f https://download.pytorch.org/whl/cpu/torch_stable.html
+
+COPY . .
+
+# build modules
+RUN bash build.sh && rm -rf utils/modules_to_build
+
+# start testing
+ENTRYPOINT python3 -m pytest -vv --disable-warnings tests && cd EV_OFlowNet && python3 -m pytest -vv --disable-warnings tests
