@@ -5,6 +5,7 @@ import random
 import torch
 import torch.utils.data
 import typing
+import yaml
 
 from EV_FlowNet.net import compute_event_image
 from .common import cumsum_with_prefix, to_tensor
@@ -842,12 +843,12 @@ class PreprocessedDataloader:
         self.sample_index = 0
         num_samples_per_file = []
         for file in self.files:
-            num_samples_per_file.append(self._file2size(file))
+            num_samples_per_file.append(self._file2size(file), save_info=True)
         self.length = sum(num_samples_per_file)
         self.current_file = self.iterator.next()
 
-    def _file2size(self, filename):
-        """Returns number of samples in a file
+    def _hdf5file2size(self, filename):
+        """Returns number of samples in a hdf5 file
 
         Args:
             filename:
@@ -858,6 +859,24 @@ class PreprocessedDataloader:
         """
         with h5py.File(filename, 'r') as f:
             return len(f['elements_per_sample'])
+
+    def _file2size(self, filename, save_info=False):
+        """Returns number of samples in a file
+
+        Args:
+            filename:
+                A name of the file with samples
+
+        Returns:
+            Number of samples in a file
+        """
+        info_filename = filename.parent/(filename.stem + '.info')
+        if info_filename.is_file():
+            return yaml.safe_load(info_filename.read_text())['size']
+        size = self._hdf5file2size(filename)
+        if save_info:
+            info_filename.write_text(yaml.dump({'size': size}))
+        return size
 
     def set_index(self,
                   idx: int):
