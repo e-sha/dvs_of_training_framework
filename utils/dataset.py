@@ -843,7 +843,7 @@ class PreprocessedDataloader:
         self.sample_index = 0
         num_samples_per_file = []
         for file in self.files:
-            num_samples_per_file.append(self._file2size(file), save_info=True)
+            num_samples_per_file.append(self._file2size(file, save_info=True))
         self.length = sum(num_samples_per_file)
         self.current_file = self.iterator.next()
 
