@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 from utils.file_iterators import FileLoader, FileIteratorWithCache
+from utils.file_iterators import create_file_iterator, FileIterator
 
 
 def test_FileLoader():
@@ -141,3 +142,16 @@ class TestFileIterator:
             assert cached == expected[1]
             in_q.put('token')
             out_q.get()
+
+    def test_short_dataset_with_cache(self):
+        self.cache_dir_holder = TemporaryDirectory(dir='/tmp')
+        iterator = create_file_iterator(
+            self.files2process, cache_dir=Path(self.cache_dir_holder.name),
+            num_files_in_cache=len(self.files2process),
+            process_only_once=False)
+        assert isinstance(iterator, FileIterator)
+        assert len(list(self.cache_dir_holder.glob("*.hdf5"))) == \
+            len(self.files2process)
+        for gt_file in self.files2process * 2:
+            f = next(iterator)
+            assert gt_file.read_text() == f.read_text()
