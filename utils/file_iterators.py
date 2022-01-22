@@ -115,23 +115,7 @@ class FileLoader:
 
 
 class FileIteratorWithCache:
-    """Loads files from a remote storage to the cache.
-
-    The code doesn't remove previously cached files.
-
-    To use:
-    # loads the first 2 elements: 0.hdf5, 1.hdf5
-    >>> loader = FileLoader(Path('/storage').glob('*.hdf5'),
-                            FileLoader(Path('/tmp')), 2)
-    >>> loader.next() # returns the first element
-    /tmp/0.hdf5
-    >>> loader.next() # returns the second element. The first
-                      # one is still stored
-    /tmp/1.hdf5
-    >>> loader.next()
-    /tmp/2.hdf5
-
-    The desired state:
+    """Iterates over the remotes files using the cache.
 
     Assume:
     - Processing of a single file takes 1 period
@@ -139,21 +123,7 @@ class FileIteratorWithCache:
     - Cache size is 3 files
     - Load cache is 1 file
 
-    The expected behaviour when process_only_once is set to False
-    Timestamp|   Cache  |Load cache|Used file
-    =========================================
-        0    |__, __, __|    F0    |
-        1    |__, __, __|    F0    |
-        2    |F0, __, __|    F1    |    F0
-        3    |F0, __, __|    F1    |    F0 <- we second time use the same file
-        4    |F0, F1, __|    F2    |    F1
-        5    |F0, F1, __|    F2    |    F0 <- new cycle
-        6    |F0, F1, F2|    F3    |    F1
-        7    |F0, F1, F2|    F3    |    F2
-        8    |F1, F2, F3|    F4    |    F3
-        9    |F1, F2, F3|    F4    |    F1 <- new cycle
-
-    The expected behaviour when process_only_once is set to True
+    The expected behaviour is
     Timestamp|   Cache  |Load cache|Used file
     =========================================
         0    |__, __, __|    F0    |
@@ -247,13 +217,16 @@ class FileIteratorWithCache:
             block:
                 If the call is not blocking, the function may return None
         """
+        print(f'initial = {self.idx}')
         while self.process_only_once and self.idx != 0:
             self._remove_from_cache()
+        print(f'first = {self.idx}')
         # try to update the cache
         while len(self.cached_files) < self.num_files_to_cache or \
                 not self.cached_files[0].is_in_use():
             try:
                 result = self._get_loaded_file(False)
+                print(f'Load a file {result.name}')
                 if len(self.cached_files) == self.num_files_to_cache and \
                         not self.cached_files[0].is_in_use():
                     self._remove_from_cache()
@@ -262,16 +235,21 @@ class FileIteratorWithCache:
                 if self.idx == 0 and not self.cached_files[0].is_in_use():
                     self.idx = len(self.cached_files) - 1
             except queue.Empty:
+                print('File is not loaded')
                 break
+        print(f'second = {self.idx}')
+        print(self.cached_files)
         # if there is no file to return
         if len(self.cached_files) == 0:
             if block:
                 result = self._get_loaded_file(True)
                 self.cached_files.append(result)
                 self.idx += 1
+                print([x.name for x in self.cached_files])
                 return self.cached_files[-1]
             else:
                 return None
+        print(f'third = {self.idx}')
         # we cannot store processed files
         # if it is not allowed to process them several times
         assert not self.process_only_once or self.idx == 0
@@ -291,3 +269,38 @@ class FileIteratorWithCache:
         self.num_waited = 0
         self.idx = 0
         self._init_cache(self.num_files_to_cache)
+
+
+class FileIteratorNonBlocking:
+    """Iterates over the remote files using the cache.
+    It can return the same file several times even if some files have not been
+    processed yet.
+
+    Assume:
+    - Processing of a single file takes 1 period
+    - Loading of a single file takes 2 periods
+    - Cache size is 3 files
+    - Load cache is 1 file
+
+    The expected behaviour is
+    Timestamp|   Cache  |Load cache|Used file
+    =========================================
+        0    |__, __, __|    F0    |
+        1    |__, __, __|    F0    |
+        2    |F0, __, __|    F1    |    F0
+        3    |F0, __, __|    F1    |    F0 <- we second time use the same file
+        4    |F0, F1, __|    F2    |    F1
+        5    |F0, F1, __|    F2    |    F0 <- new cycle
+        6    |F0, F1, F2|    F3    |    F1
+        7    |F0, F1, F2|    F3    |    F2
+        8    |F1, F2, F3|    F4    |    F3
+        9    |F1, F2, F3|    F4    |    F1 <- new cycle
+    """
+    def __init__(self):
+        pass
+
+    def next(self):
+        pass
+
+    def reset(self):
+        pass
