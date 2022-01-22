@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import copy
 from pathlib import Path
 import queue
@@ -77,7 +78,7 @@ class FileIterator:
     """Allows iteration over a list of files
 
     To use:
-    >>> loader = FileLoader(Path('/storage').glob('*.hdf5'))
+    >>> loader = FileIterator(Path('/storage').glob('*.hdf5'))
     >>> loader.next()
     /tmp/0.hdf5
     >>> loader.next()
@@ -114,7 +115,82 @@ class FileLoader:
         return cached
 
 
-class FileIteratorWithCache:
+class AbstractFileIteratorWithCache(ABC):
+    def __init__(self,
+                 remote_files,
+                 file_loader,
+                 num_files_to_cache):
+        """Initializes the iterator
+
+        Args:
+            remote_files:
+                A list of the files to load
+            file_loader:
+                A callable that can copy the input file to a cache
+            num_files_to_cache:
+                A maximum number of files in a cache
+        """
+        def thread_function(request_queue, response_queue, file_loader):
+            while True:
+                remote = request_queue.get()
+                if remote is None:
+                    break
+                response_queue.put(file_loader(remote))
+
+        self.remote_files = copy.deepcopy(list(remote_files))
+        self.request_queue = queue.Queue()
+        self.response_queue = queue.Queue()
+
+        # files in the current cache
+        self.cached_files = []
+        # index of the next file in cache to return
+        self.idx = 0
+        # number of files not received from the read_thread
+        self.num_waited = 0
+        self.cached_end = 0
+
+        self._init_cache(num_files_to_cache)
+        self.read_thread = threading.Thread(target=thread_function,
+                                            args=(self.request_queue,
+                                                  self.response_queue,
+                                                  file_loader),
+                                            daemon=True)
+        self.read_thread.start()
+
+    def _init_cache(self, num_files_to_cache):
+        num_files_to_cache = min(num_files_to_cache, len(self.remote_files))
+        for i in range(num_files_to_cache):
+            self._add_download_request()
+        self.num_files_to_cache = num_files_to_cache
+
+    def _add_download_request(self):
+        self.request_queue.put(self.remote_files[self.cached_end])
+        self.cached_end = (self.cached_end + 1) % len(self.remote_files)
+        self.num_waited += 1
+
+    def _remove_from_cache(self):
+        assert len(self.cached_files) > 0
+        self.cached_files[0].remove()
+        self.cached_files = self.cached_files[1:]
+        self.idx = max(1, self.idx) - 1
+
+    def _get_loaded_file(self, block):
+        # if block is False the next statement cat throw queue.Empty exception
+        result = ReleasableFile(self.response_queue.get(block))
+        self.num_waited -= 1
+        self._add_download_request()
+        return result
+
+    @abstractmethod
+    def next(self):
+        pass
+
+    @abstractmethod
+    def reset(self):
+        pass
+
+
+class FileIteratorWithCache(AbstractFileIteratorWithCache):
     """Iterates over the remotes files using the cache.
 
     Assume:
@@ -159,56 +235,8 @@ class FileIteratorWithCache:
             process_only_once:
                 Controls allowance of multiple passes through the file.
         """
-        def thread_function(request_queue, response_queue, file_loader):
-            while True:
-                remote = request_queue.get()
-                if remote is None:
-                    break
-                response_queue.put(file_loader(remote))
-
+        super().__init__(remote_files, file_loader, num_files_to_cache)
         self.process_only_once = process_only_once
-        self.remote_files = copy.deepcopy(list(remote_files))
-        self.request_queue = queue.Queue()
-        self.response_queue = queue.Queue()
-
-        # files in the current cache
-        self.cached_files = []
-        # index of the next file in cache to return
-        self.idx = 0
-        # number of files not received from the read_thread
-        self.num_waited = 0
-        self.cached_end = 0
-
-        self._init_cache(num_files_to_cache)
-        self.read_thread = threading.Thread(target=thread_function,
-                                            args=(self.request_queue,
-                                                  self.response_queue,
-                                                  file_loader),
-                                            daemon=True)
-        self.read_thread.start()
-
-    def _init_cache(self, num_files_to_cache):
-        num_files_to_cache = min(num_files_to_cache, len(self.remote_files))
-        for i in range(num_files_to_cache):
-            self._add_download_request()
-        self.num_files_to_cache = num_files_to_cache
-
-    def _remove_from_cache(self):
-        assert len(self.cached_files) > 0
-        self.cached_files[0].remove()
-        self.cached_files = self.cached_files[1:]
-        self.idx = max(1, self.idx) - 1
-
-    def _get_loaded_file(self, block):
-        result = ReleasableFile(self.response_queue.get(block))
-        self.num_waited -= 1
-        self._add_download_request()
-        return result
-
-    def _add_download_request(self):
-        self.request_queue.put(self.remote_files[self.cached_end])
-        self.cached_end = (self.cached_end + 1) % len(self.remote_files)
-        self.num_waited += 1
 
     def next(self, block=True):
         """ Returns path of the next cached element.
