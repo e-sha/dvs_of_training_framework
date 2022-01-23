@@ -63,10 +63,15 @@ def create_file_iterator(files,
     files = list(Path(f) for f in files)
     if cache_dir is None:
         return FileIterator(files)
-    iterator = FileIteratorWithCache(files,
-                                     FileLoader(cache_dir),
-                                     num_files_in_cache,
-                                     process_only_once=process_only_once)
+    if not process_only_once and num_files_in_cache < len(files):
+        # if we can cache all files in the fast memory we should do it
+        # even if process_only_once is set to False
+        iterator_class = FileIteratorNonBlocking
+    else:
+        iterator_class = FileIteratorWithCache
+    iterator = iterator_class(files,
+                              FileLoader(cache_dir),
+                              num_files_in_cache)
     if num_files_in_cache < len(files):
         return iterator
     # if we can cache all files then cache them and use the basic FileIterator
@@ -182,12 +187,19 @@ class AbstractFileIteratorWithCache(ABC):
         return result
 
     @abstractmethod
-    def next(self):
+    def next(self, block):
         pass
 
-    @abstractmethod
     def reset(self):
-        pass
+        # remove all cached files but not read files
+        for i in range(self.num_waited):
+            result = ReleasableFile(self.response_queue.get(True))
+            result.release()
+            result.remove()
+        self.num_waited = 0
+        self.cached_end = 0
+        self.idx = 0
+        self._init_cache(self.num_files_to_cache)
 
 
 class FileIteratorWithCache(AbstractFileIteratorWithCache):
@@ -288,18 +300,8 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
             self.idx %= len(self.cached_files)
         return result
 
-    def reset(self):
-        # remove all cached files but not read files
-        for i in range(self.num_waited):
-            result = ReleasableFile(self.response_queue.get(True))
-            result.release()
-            result.remove()
-        self.num_waited = 0
-        self.idx = 0
-        self._init_cache(self.num_files_to_cache)
 
-
-class FileIteratorNonBlocking:
+class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
     """Iterates over the remote files using the cache.
     It can return the same file several times even if some files have not been
     processed yet.
@@ -325,10 +327,56 @@ class FileIteratorNonBlocking:
         9    |F1, F2, F3|    F4    |    F1 <- new cycle
     """
     def __init__(self):
-        pass
+        super().__init__(remote_files, file_loader, num_files_to_cache)
 
-    def next(self):
-        pass
+    def next(self, block=True):
+        """ Returns path of the next cached element.
 
-    def reset(self):
-        pass
+        Args:
+            block:
+                If the call is not blocking, the function may return None.
+                It can happen only on the first iterations when there are no
+                data in the cache
+        """
+        print(f'initial = {self.idx}')
+        while self.process_only_once and self.idx != 0:
+            self._remove_from_cache()
+        print(f'first = {self.idx}')
+        # try to update the cache
+        while len(self.cached_files) < self.num_files_to_cache or \
+                not self.cached_files[0].is_in_use():
+            try:
+                result = self._get_loaded_file(False)
+                print(f'Load a file {result.name}')
+                if len(self.cached_files) == self.num_files_to_cache and \
+                        not self.cached_files[0].is_in_use():
+                    self._remove_from_cache()
+                self.cached_files.append(result)
+                # if we have planed to start a new cycle
+                if self.idx == 0 and not self.cached_files[0].is_in_use():
+                    self.idx = len(self.cached_files) - 1
+            except queue.Empty:
+                print('File is not loaded')
+                break
+        print(f'second = {self.idx}')
+        print(self.cached_files)
+        # if there is no file to return
+        if len(self.cached_files) == 0:
+            if block:
+                result = self._get_loaded_file(True)
+                self.cached_files.append(result)
+                self.idx += 1
+                print([x.name for x in self.cached_files])
+                return self.cached_files[-1]
+            else:
+                return None
+        print(f'third = {self.idx}')
+        # we cannot store processed files
+        # if it is not allowed to process them several times
+        assert not self.process_only_once or self.idx == 0
+        result = self.cached_files[self.idx]
+        result.start_use()
+        self.idx += 1
+        if not self.process_only_once:
+            self.idx %= len(self.cached_files)
+        return result
