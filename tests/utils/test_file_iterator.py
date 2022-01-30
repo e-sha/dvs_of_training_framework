@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 from utils.file_iterators import FileLoader, FileIteratorWithCache
+from utils.file_iterators import FileIteratorNonBlocking
 from utils.file_iterators import create_file_iterator, FileIterator
 
 
@@ -51,9 +52,12 @@ class Processing:
                  process_only_once,
                  in_q,
                  out_q):
-        self.iterator = FileIteratorWithCache(
-                files2process, file_loader, files2cache,
-                process_only_once=process_only_once)
+        if process_only_once:
+            self.iterator = FileIteratorWithCache(
+                    files2process, file_loader, files2cache)
+        else:
+            self.iterator = FileIteratorNonBlocking(
+                    files2process, file_loader, files2cache)
         while True:
             token = in_q.get()
             if self.last_loaded:

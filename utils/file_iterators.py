@@ -230,8 +230,7 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
                  remote_files,
                  file_loader,
                  num_files_to_cache=5,
-                 num_non_cached_files=2,
-                 process_only_once=True):
+                 num_non_cached_files=2):
         """Initializes the iterator
 
         Args:
@@ -244,11 +243,8 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
             num_non_cached_files:
                 A maximum number of downloaded, but not yet cached files
                 to store. It is usefull if processing is slower than loading
-            process_only_once:
-                Controls allowance of multiple passes through the file.
         """
         super().__init__(remote_files, file_loader, num_files_to_cache)
-        self.process_only_once = process_only_once
 
     def next(self, block=True):
         """ Returns path of the next cached element.
@@ -258,7 +254,7 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
                 If the call is not blocking, the function may return None
         """
         print(f'initial = {self.idx}')
-        while self.process_only_once and self.idx != 0:
+        while self.idx != 0:
             self._remove_from_cache()
         print(f'first = {self.idx}')
         # try to update the cache
@@ -292,12 +288,10 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
         print(f'third = {self.idx}')
         # we cannot store processed files
         # if it is not allowed to process them several times
-        assert not self.process_only_once or self.idx == 0
+        assert self.idx == 0
         result = self.cached_files[self.idx]
         result.start_use()
         self.idx += 1
-        if not self.process_only_once:
-            self.idx %= len(self.cached_files)
         return result
 
 
@@ -326,7 +320,11 @@ class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
         8    |F1, F2, F3|    F4    |    F3
         9    |F1, F2, F3|    F4    |    F1 <- new cycle
     """
-    def __init__(self):
+    def __init__(self,
+                 remote_files,
+                 file_loader,
+                 num_files_to_cache=5,
+                 num_non_cached_files=2):
         super().__init__(remote_files, file_loader, num_files_to_cache)
 
     def next(self, block=True):
@@ -339,8 +337,6 @@ class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
                 data in the cache
         """
         print(f'initial = {self.idx}')
-        while self.process_only_once and self.idx != 0:
-            self._remove_from_cache()
         print(f'first = {self.idx}')
         # try to update the cache
         while len(self.cached_files) < self.num_files_to_cache or \
@@ -373,10 +369,8 @@ class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
         print(f'third = {self.idx}')
         # we cannot store processed files
         # if it is not allowed to process them several times
-        assert not self.process_only_once or self.idx == 0
         result = self.cached_files[self.idx]
         result.start_use()
         self.idx += 1
-        if not self.process_only_once:
-            self.idx %= len(self.cached_files)
+        self.idx %= len(self.cached_files)
         return result
