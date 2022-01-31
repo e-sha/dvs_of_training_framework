@@ -159,3 +159,4 @@ class TestFileIterator:
         for gt_file in self.files2process * 2:
             f = next(iterator)
             assert gt_file.read_text() == f.read_text()
+            f.release()

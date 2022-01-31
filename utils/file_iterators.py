@@ -7,6 +7,10 @@ import tempfile
 import threading
 
 
+class CacheIsFullError(Exception):
+    pass
+
+
 class DummyFile:
     """A file that knows its name and doesn't remove file on release call
     """
@@ -254,45 +258,31 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
                 If the call is not blocking, the function may return None
         """
         print(f'initial = {self.idx}')
-        while self.idx != 0:
+        while len(self.cached_files) > 0 and \
+                not self.cached_files[0].is_in_use():
             self._remove_from_cache()
         print(f'first = {self.idx}')
+        if self.idx == self.num_files_to_cache:
+            raise CacheIsFullError("List of the cached files is full. "
+                                   "Please release the oldest file "
+                                   f"'{self.cached_files[0].name}'")
         # try to update the cache
-        while len(self.cached_files) < self.num_files_to_cache or \
-                not self.cached_files[0].is_in_use():
+        while len(self.cached_files) < self.num_files_to_cache:
             try:
-                result = self._get_loaded_file(False)
+                is_blocking = block and len(self.cached_files) <= self.idx
+                result = self._get_loaded_file(is_blocking)
                 print(f'Load a file {result.name}')
-                if len(self.cached_files) == self.num_files_to_cache and \
-                        not self.cached_files[0].is_in_use():
-                    self._remove_from_cache()
                 self.cached_files.append(result)
-                # if we have planed to start a new cycle
-                if self.idx == 0 and not self.cached_files[0].is_in_use():
-                    self.idx = len(self.cached_files) - 1
             except queue.Empty:
                 print('File is not loaded')
                 break
         print(f'second = {self.idx}')
         print(self.cached_files)
         # if there is no file to return
-        if len(self.cached_files) == 0:
-            if block:
-                result = self._get_loaded_file(True)
-                self.cached_files.append(result)
-                self.idx += 1
-                print([x.name for x in self.cached_files])
-                return self.cached_files[-1]
-            else:
-                return None
-        print(f'third = {self.idx}')
-        # we cannot store processed files
-        # if it is not allowed to process them several times
-        assert self.idx == 0
-        result = self.cached_files[self.idx]
-        result.start_use()
+        if len(self.cached_files) <= self.idx:
+            return None
         self.idx += 1
-        return result
+        return self.cached_files[self.idx - 1]
 
 
 class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
