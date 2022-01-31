@@ -79,7 +79,11 @@ def create_file_iterator(files,
     if num_files_in_cache < len(files):
         return iterator
     # if we can cache all files then cache them and use the basic FileIterator
-    new_files = [iterator.next() for _ in files]
+    new_files = [iterator.next().name for _ in files]
+    print('!!!!!!!!!!!!!!!')
+    print(new_files)
+    print('!!!!!!!!!!!!!!!')
+    print(len(new_files))
     return FileIterator(new_files)
 
 

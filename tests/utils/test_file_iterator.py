@@ -154,9 +154,8 @@ class TestFileIterator:
             num_files_in_cache=len(self.files2process),
             process_only_once=False)
         assert isinstance(iterator, FileIterator)
-        assert len(list(self.cache_dir_holder.glob("*.hdf5"))) == \
-            len(self.files2process)
+        assert len(iterator.files) == len(self.files2process)
         for gt_file in self.files2process * 2:
-            f = next(iterator)
-            assert gt_file.read_text() == f.read_text()
+            f = iterator.next()
+            assert gt_file.read_text() == f.name.read_text()
             f.release()
