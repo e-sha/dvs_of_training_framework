@@ -116,9 +116,10 @@ def create_hooks(args, model, optimizer, losses, logger, serializer):
                                                 logger)}
     periods = {'serialization': args.checkpointing_interval}
     if not args.skip_validation:
+        # only raw events can be used for validation
         hooks['validation'] = ValidationHook(model, device, loader, logger,
                                              losses, weights=args.loss_weights,
-                                             is_raw=args.is_raw)
+                                             is_raw=True)
         periods['validation'] = args.vp
     periodic_hooks = {k: make_hook_periodic(hooks[k], periods[k])
                       for k in periods}
