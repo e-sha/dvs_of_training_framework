@@ -29,12 +29,12 @@ def choose_data_path(args):
     return args
 
 
+def choose_collate_function(is_raw):
+    return collate_wrapper if is_raw else None
+
+
 def get_common_dataset_params(args):
-    is_raw = args.is_raw
-    collate_fn = collate_wrapper if is_raw else None
-    return SimpleNamespace(is_raw=is_raw,
-                           collate_fn=collate_fn,
-                           shape=args.shape,
+    return SimpleNamespace(shape=args.shape,
                            batch_size=args.mbs,
                            pin_memory=True,
                            num_workers=args.num_workers,
@@ -51,6 +51,7 @@ def get_trainset_params(args):
     params.shuffle = True
     params.infinite = True
     params.is_raw = args.is_raw
+    params.collate_fn = choose_collate_function(params.is_raw)
     params.preprocessed_dataset_path = args.preprocessed_dataset_path \
         if 'preprocessed_dataset_path' in args else None
     params.cache_dir = args.cache_dir if 'cache_dir' in args else None
@@ -64,6 +65,8 @@ def get_valset_params(args):
     params.collapse_length = 1
     params.shuffle = False
     params.infinite = False
+    params.is_raw = True
+    params.collate_fn = choose_collate_function(params.is_raw)
     params.preprocessed_dataset_path = None
     return params
 
