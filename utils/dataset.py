@@ -4,6 +4,7 @@ import numpy as np
 import random
 import torch
 import torch.utils.data
+import tqdm
 import typing
 import yaml
 
@@ -842,7 +843,8 @@ class PreprocessedDataloader:
             self.files, cache_dir, process_only_once=process_only_once)
         self.sample_index = 0
         num_samples_per_file = []
-        for file in self.files:
+        for file in tqdm.tqdm(self.files,
+                              desc='Reading information about the dataset'):
             num_samples_per_file.append(self._file2size(file, save_info=True))
         self.length = sum(num_samples_per_file)
         self.current_file = self.iterator.next()
