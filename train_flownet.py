@@ -187,7 +187,7 @@ def main():
 
     loader = get_dataloader(get_trainset_params(args),
                             sample_idx=samples_passed,
-                            process_only_once=False)
+                            process_only_once=args.process_only_once)
 
     if not args.skip_validation:
         hooks['validation'](global_step, samples_passed)

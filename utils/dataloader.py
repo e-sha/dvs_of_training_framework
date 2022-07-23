@@ -55,6 +55,7 @@ def get_trainset_params(args):
     params.preprocessed_dataset_path = args.preprocessed_dataset_path \
         if 'preprocessed_dataset_path' in args else None
     params.cache_dir = args.cache_dir if 'cache_dir' in args else None
+    params.cache_size = args.cache_size
     return params
 
 
@@ -92,6 +93,7 @@ def get_dataloader(params, sample_idx=0, process_only_once=True):
             batch_size=params.batch_size,
             is_raw=params.is_raw,
             cache_dir=params.cache_dir,
+            cache_size=params.cache_size,
             process_only_once=process_only_once)
         loader.set_index(sample_idx)
         return loader

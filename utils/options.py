@@ -159,6 +159,17 @@ def add_preprocessed_dataset_arguments(parser):
                         dest='cache_dir',
                         default=None,
                         type=Path)
+    parser.add_argument('--cache-size',
+                        help='Number of files to store in a cache',
+                        dest='cache_size',
+                        default=5,
+                        type=int)
+    parser.add_argument('--process-only-once',
+                        help='If True, than each sample is processed only '
+                             'once per epoch. False value should be much '
+                             'faster if cache_dir is set.',
+                        dest='process_only_once',
+                        action='store_true')
     return parser
 
 

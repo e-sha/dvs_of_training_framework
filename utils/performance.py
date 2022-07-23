@@ -16,7 +16,8 @@ def get_iterable_performance(loader,
             A number of iterations for evaluation.
 
     Returns:
-        An average time in microseconds required for a single iteration of the loader
+        An average time in microseconds required for a single iteration
+        of the loader.
     """
     assert num_iters > 0
     t0 = None

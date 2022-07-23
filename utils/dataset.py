@@ -816,20 +816,23 @@ class PreprocessedDataloader:
                  batch_size: int,
                  is_raw: bool,
                  cache_dir=None,
+                 cache_size=0,
                  process_only_once=True):
         """Inits PreprocessedDataloader with path to preprocessed dataset
         and batch size
 
         Args:
             path:
-                A path to the preprocessed dataset
+                A path to the preprocessed dataset.
             batch_size:
-                Number of samples per batch
+                Number of samples per batch.
             is_raw:
                 An indicator of the raw event stream instead,
-                not the event images
+                not the event images.
             cache_dir:
                 A directory to cache the preprocessed dataset.
+            cache_size:
+                Number of files to store in a cache.
             process_only_once:
                 Doesn't allow to iterate over the same cached
                 files several times.
@@ -840,7 +843,8 @@ class PreprocessedDataloader:
         assert len(self.files) > 0, f'No preprocessed dataset at {path} ' \
                                     '(on .hdf5 files)'
         self.iterator = create_file_iterator(
-            self.files, cache_dir, process_only_once=process_only_once)
+            self.files, cache_dir, process_only_once=process_only_once,
+            num_files_in_cache=cache_size)
         self.sample_index = 0
         num_samples_per_file = []
         for file in tqdm.tqdm(self.files,

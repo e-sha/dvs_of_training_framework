@@ -1,4 +1,4 @@
-set -xe
+set -e
 
 SCRIPT_PATH=$(dirname $(realpath $0))
 DATA_BENCHMARK_PATH=${SCRIPT_PATH}/data
@@ -7,6 +7,8 @@ CODE_PATH=$(realpath ${SCRIPT_PATH}/../../)
 DATASET_PATH=$(realpath ${CODE_PATH}/../data/training/mvsec)
 PREPROCESSED_DATASET_PATH=${DATASET_PATH}/preprocessed/1_1_1
 QUANTIZED_DATASET_PATH=${DATASET_PATH}/quantized/1_1_1
+
+CACHE_SIZE=3
 
 MODEL_PATH=$(mktemp -d)
 
@@ -31,11 +33,24 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
   ${COMMON_ARGS}
 
-echo "Preprocessed dataset with cache"
+CACHE_DIR=$(mktemp -d)
+echo "Preprocessed dataset with cache but processing only once"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
-  --cache-dir /content/cache \
+  --cache-dir ${CACHE_DIR} \
+  --cache-size ${CACHE_SIZE} \
+  --process-only-once \
   ${COMMON_ARGS}
+rm -rf ${CACHE_DIR}
+
+CACHE_DIR=$(mktemp -d)
+echo "Preprocessed dataset with cache with multiple passes over cached data"
+python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
+  --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
+  --cache-dir ${CACHE_DIR} \
+  --cache-size ${CACHE_SIZE} \
+  ${COMMON_ARGS}
+rm -rf ${CACHE_DIR}
 
 echo "Quantized dataset without cache"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
@@ -43,12 +58,25 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --ev_images \
   ${COMMON_ARGS}
 
-echo "Quantized dataset with cache"
-!mkdir -p /content/cache
+CACHE_DIR=$(mktemp -d)
+echo "Quantized dataset with cache but processing only once"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path ${QUANTIZED_DATASET_PATH} \
   --ev_images \
-  --cache-dir /content/cache \
+  --cache-dir ${CACHE_DIR} \
+  --cache-size ${CACHE_SIZE} \
+  --process-only-once \
   ${COMMON_ARGS}
+rm -rf ${CACHE_DIR}
+
+CACHE_DIR=$(mktemp -d)
+echo "Quantized dataset with cache with multiple passes over cached data"
+python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
+  --preprocessed-dataset-path ${QUANTIZED_DATASET_PATH} \
+  --ev_images \
+  --cache-dir ${CACHE_DIR} \
+  --cache-size ${CACHE_SIZE} \
+  ${COMMON_ARGS}
+rm -rf ${CACHE_DIR}
 
 rm -rf ${MODEL_PATH}

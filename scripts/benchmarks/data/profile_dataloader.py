@@ -21,10 +21,11 @@ except ImportError:
 
 
 def main(args):
-    loader = get_dataloader(get_trainset_params(args))
+    print(f"{args = }")
+    loader = get_dataloader(get_trainset_params(args), process_only_once=args.process_only_once)
     loader_perf = get_iterable_performance(loader)
-    print(f'An average dataloader performance is {loader_perf} '
-          'seconds per iteration')
+    print(f'An average dataloader performance is {loader_perf:.2f} '
+            f'microseconds per iteration ({10**6 / loader_perf:.2f} iterations per second)')
 
 
 if __name__ == '__main__':

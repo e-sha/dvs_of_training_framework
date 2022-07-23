@@ -73,9 +73,20 @@ def create_file_iterator(files,
         iterator_class = FileIteratorNonBlocking
     else:
         iterator_class = FileIteratorWithCache
+    # choose appropriate cache size and
+    # number of downloaded-but-not-cached-yet files.
+    if num_files_in_cache < len(files):
+        cache_size = max(num_files_in_cache - 1, 1)
+        files_not_in_cache = 1
+    else:
+        # it is possible to store all the files in the cache
+        cache_size = num_files_in_cache
+        files_not_in_cache = 2
+
     iterator = iterator_class(files,
                               FileLoader(cache_dir),
-                              num_files_in_cache)
+                              cache_size,
+                              files_not_in_cache)
     if num_files_in_cache < len(files):
         return iterator
     # if we can cache all files then cache them and use the basic FileIterator
@@ -128,7 +139,8 @@ class AbstractFileIteratorWithCache(ABC):
     def __init__(self,
                  remote_files,
                  file_loader,
-                 num_files_to_cache):
+                 num_files_to_cache,
+                 num_non_cached_files):
         """Initializes the iterator
 
         Args:
@@ -138,16 +150,29 @@ class AbstractFileIteratorWithCache(ABC):
                 A callable that can copy the input file to a cache
             num_files_to_cache:
                 A maximum number of files in a cache
+            num_non_cached_files:
+                A number of files that can be downloaded but not yet added to
+                the cache. The optimal value is greater than 1.
         """
-        def thread_function(request_queue, response_queue, file_loader):
+        def thread_function(request_queue,
+                            token_queue,
+                            response_queue,
+                            file_loader):
             while True:
                 remote = request_queue.get()
                 if remote is None:
                     break
+                # block until size of downloaded but not cached files become
+                # less than a limit.
+                token_queue.put(None)
                 response_queue.put(file_loader(remote))
 
         self.remote_files = copy.deepcopy(list(remote_files))
         self.request_queue = queue.Queue()
+        # the token queue is controls a number of downloaded but not cached
+        # files in the memory. If the thread can put a token to the queue then
+        # there is enough space to download another file.
+        self.token_queue = queue.Queue(num_non_cached_files)
         self.response_queue = queue.Queue()
 
         # files in the current cache
@@ -161,6 +186,7 @@ class AbstractFileIteratorWithCache(ABC):
         self._init_cache(num_files_to_cache)
         self.read_thread = threading.Thread(target=thread_function,
                                             args=(self.request_queue,
+                                                  self.token_queue,
                                                   self.response_queue,
                                                   file_loader),
                                             daemon=True)
@@ -184,8 +210,11 @@ class AbstractFileIteratorWithCache(ABC):
         self.idx = max(1, self.idx) - 1
 
     def _get_loaded_file(self, block):
-        # if block is False the next statement cat throw queue.Empty exception
+        # if block is False the next statement can throw queue.Empty exception
         result = ReleasableFile(self.response_queue.get(block))
+        # here the current thread read the file, so it is safe to read
+        # the token. The call is never blocked
+        self.token_queue.get(True)
         self.num_waited -= 1
         self._add_download_request()
         return result
@@ -198,6 +227,7 @@ class AbstractFileIteratorWithCache(ABC):
         # remove all cached files but not read files
         for i in range(self.num_waited):
             result = ReleasableFile(self.response_queue.get(True))
+            self.token_queue.get(True)
             result.release()
             result.remove()
         self.num_waited = 0
@@ -248,7 +278,10 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
                 A maximum number of downloaded, but not yet cached files
                 to store. It is usefull if processing is slower than loading
         """
-        super().__init__(remote_files, file_loader, num_files_to_cache)
+        super().__init__(remote_files,
+                         file_loader,
+                         num_files_to_cache,
+                         num_non_cached_files)
 
     def next(self, block=True):
         """ Returns path of the next cached element.
@@ -257,6 +290,7 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
             block:
                 If the call is not blocking, the function may return None
         """
+        # remove files that were previously used
         while len(self.cached_files) > 0 and \
                 not self.cached_files[0].is_in_use():
             self._remove_from_cache()
@@ -267,6 +301,7 @@ class FileIteratorWithCache(AbstractFileIteratorWithCache):
         # try to update the cache
         while len(self.cached_files) < self.num_files_to_cache:
             try:
+                # block only if next file was not loaded
                 is_blocking = block and len(self.cached_files) <= self.idx
                 result = self._get_loaded_file(is_blocking)
                 self.cached_files.append(result)
@@ -309,7 +344,10 @@ class FileIteratorNonBlocking(AbstractFileIteratorWithCache):
                  file_loader,
                  num_files_to_cache=5,
                  num_non_cached_files=2):
-        super().__init__(remote_files, file_loader, num_files_to_cache)
+        super().__init__(remote_files,
+                         file_loader,
+                         num_files_to_cache,
+                         num_non_cached_files)
 
     def next(self, block=True):
         """ Returns path of the next cached element.
