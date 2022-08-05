@@ -21,7 +21,6 @@ except ImportError:
 
 
 def main(args):
-    print(f"{args = }")
     loader = get_dataloader(get_trainset_params(args), process_only_once=args.process_only_once)
     loader_perf = get_iterable_performance(loader)
     print(f'An average dataloader performance is {loader_perf:.2f} '

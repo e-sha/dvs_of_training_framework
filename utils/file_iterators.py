@@ -205,8 +205,8 @@ class AbstractFileIteratorWithCache(ABC):
 
     def _remove_from_cache(self):
         assert len(self.cached_files) > 0
-        self.cached_files[0].remove()
-        self.cached_files = self.cached_files[1:]
+        file = self.cached_files.pop(0)
+        file.remove()
         self.idx = max(1, self.idx) - 1
 
     def _get_loaded_file(self, block):
@@ -225,6 +225,10 @@ class AbstractFileIteratorWithCache(ABC):
 
     def reset(self):
         # remove all cached files but not read files
+        while self.cached_files:
+            file = self.cached_files.pop()
+            file.release()
+            file.remove()
         for i in range(self.num_waited):
             result = ReleasableFile(self.response_queue.get(True))
             self.token_queue.get(True)

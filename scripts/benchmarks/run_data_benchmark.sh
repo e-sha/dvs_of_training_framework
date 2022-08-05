@@ -8,7 +8,7 @@ DATASET_PATH=$(realpath ${CODE_PATH}/../data/training/mvsec)
 PREPROCESSED_DATASET_PATH=${DATASET_PATH}/preprocessed/1_1_1
 QUANTIZED_DATASET_PATH=${DATASET_PATH}/quantized/1_1_1
 
-CACHE_SIZE=3
+CACHE_SIZE=2
 
 MODEL_PATH=$(mktemp -d)
 
