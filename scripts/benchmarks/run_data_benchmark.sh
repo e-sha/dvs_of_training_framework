@@ -28,6 +28,10 @@ COMMON_ARGS=$(echo "-m ${MODEL_PATH} \
              --allow-obsolete-code \
              --allow-arguments-change" | tr -s " ")
 
+echo "Raw data"
+python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
+  ${COMMON_ARGS}
+
 echo "Preprocessed dataset without cache"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
