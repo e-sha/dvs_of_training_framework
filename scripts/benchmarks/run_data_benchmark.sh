@@ -8,9 +8,15 @@ DATASET_PATH=$(realpath ${CODE_PATH}/../data/training/mvsec)
 PREPROCESSED_DATASET_PATH=${DATASET_PATH}/preprocessed/1_1_1
 QUANTIZED_DATASET_PATH=${DATASET_PATH}/quantized/1_1_1
 
+if [ -d /content/code ]; then
+  TMP_DIR=/content/cache
+else
+  TMP_DIR=/tmp
+fi
+
 CACHE_SIZE=2
 
-MODEL_PATH=$(mktemp -d)
+MODEL_PATH=$(mktemp -d -p $TMP_DIR)
 
 COMMON_ARGS=$(echo "-m ${MODEL_PATH} \
              --flownet_path ${CODE_PATH}/EV_OFlowNet \
@@ -37,7 +43,7 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
   ${COMMON_ARGS}
 
-CACHE_DIR=$(mktemp -d)
+CACHE_DIR=$(mktemp -d -p $TMP_DIR)
 echo "Preprocessed dataset with cache but processing only once"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
@@ -47,7 +53,7 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   ${COMMON_ARGS}
 rm -rf ${CACHE_DIR}
 
-CACHE_DIR=$(mktemp -d)
+CACHE_DIR=$(mktemp -d -p $TMP_DIR)
 echo "Preprocessed dataset with cache with multiple passes over cached data"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path $PREPROCESSED_DATASET_PATH \
@@ -62,7 +68,7 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --ev_images \
   ${COMMON_ARGS}
 
-CACHE_DIR=$(mktemp -d)
+CACHE_DIR=$(mktemp -d -p $TMP_DIR)
 echo "Quantized dataset with cache but processing only once"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path ${QUANTIZED_DATASET_PATH} \
@@ -73,7 +79,7 @@ python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   ${COMMON_ARGS}
 rm -rf ${CACHE_DIR}
 
-CACHE_DIR=$(mktemp -d)
+CACHE_DIR=$(mktemp -d -p $TMP_DIR)
 echo "Quantized dataset with cache with multiple passes over cached data"
 python3 ${DATA_BENCHMARK_PATH}/profile_dataloader.py \
   --preprocessed-dataset-path ${QUANTIZED_DATASET_PATH} \

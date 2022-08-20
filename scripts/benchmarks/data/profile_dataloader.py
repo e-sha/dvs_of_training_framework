@@ -9,7 +9,7 @@ except ImportError:
     script_dir_path = Path(__file__).resolve().parent
     while script_dir_path.name != 'scripts':
         script_dir_path = script_dir_path.parent
-    sys.path.append(str(script_path.parent))
+    sys.path.append(str(script_dir_path.parent))
     from train_flownet import get_trainset_params
 
 
