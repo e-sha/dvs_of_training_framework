@@ -292,12 +292,12 @@ def encode_batch(events: torch.Tensor,
 
     new_e = np.zeros(e.size, dtype=np.uint8)
     element_shift = np.array([0] + result['elements_per_sample'].tolist(),
-                             dtype=np.long)
+                             dtype=np.int64)
     element_shift = np.cumsum(element_shift)
     new_e = e + element_shift[s]
     total_elements = int(new_e[-1]) + 1
 
-    events_per_element = np.zeros(total_elements, dtype=np.long)
+    events_per_element = np.zeros(total_elements, dtype=np.int64)
     np.add.at(events_per_element, new_e, np.ones_like(new_e))
     events_per_element = torch.tensor(events_per_element)
     result['events'] = {'x': x, 'y': y, 'timestamp': t, 'polarity': p,
@@ -355,8 +355,8 @@ def decode_batch(encoded_batch):
     sample_index = []
     for i, num_elements in enumerate(encoded_batch['elements_per_sample']):
         current_events_per_element = \
-                events['events_per_element'][sample_shift[i]:
-                                             sample_shift[i + 1]]
+            events['events_per_element'][sample_shift[i]:
+                                         sample_shift[i + 1]]
         num_events = sum(current_events_per_element).item()
         element_index.append(torch.cat(
             [torch.full([n], j, dtype=torch.long)
@@ -916,7 +916,7 @@ class PreprocessedDataloader:
     def _read_raw_batch(descriptor, begin, end):
         """Reads a batch of row events from a file"""
         events_per_element = torch.tensor(
-                descriptor['events']['events_per_element'])
+            descriptor['events']['events_per_element'])
         elements_per_sample = torch.tensor(descriptor['elements_per_sample'])
         return read_encoded_batch(descriptor, events_per_element,
                                   elements_per_sample, begin, end)
